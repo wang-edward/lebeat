@@ -305,9 +305,12 @@ impl App {
             }
             Key::Enter => {
                 let tag = PLUGIN_LIST[self.selector_index];
-                let mut eng = self.engine.lock().unwrap();
-                let at = eng.active_track;
-                eng.add_plugin(at, Plugin::new(tag));
+                let p = Plugin::new(tag);
+                {
+                    let mut eng = self.engine.lock().unwrap();
+                    let at = eng.active_track;
+                    eng.add_plugin(at, p);
+                }
                 self.screen = Screen::TrackOverview;
             }
             _ => {}
