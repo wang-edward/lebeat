@@ -10,7 +10,6 @@ pub mod audio_out;
 pub mod engine;
 pub mod input;
 pub mod midi;
-pub mod queue;
 pub mod synth;
 
 pub mod interface;
@@ -20,7 +19,6 @@ pub mod ui;
 mod tests {
     use crate::audio::Context;
     use crate::midi::{self, Note, NoteMsg, Player};
-    use crate::queue::{BoundedList, SpscQueue};
     use crate::synth::Uni;
 
     const SR: f32 = 48_000.0;
@@ -96,22 +94,6 @@ mod tests {
     }
 
     #[test]
-    fn spsc_queue_fifo_and_full() {
-        // N = 4 backing slots => 3 usable.
-        let q: SpscQueue<u32, 4> = SpscQueue::new();
-        assert!(q.push(1));
-        assert!(q.push(2));
-        assert!(q.push(3));
-        assert!(!q.push(4)); // full (one slot reserved)
-        assert_eq!(q.pop(), Some(1));
-        assert_eq!(q.pop(), Some(2));
-        assert!(q.push(4));
-        assert_eq!(q.pop(), Some(3));
-        assert_eq!(q.pop(), Some(4));
-        assert_eq!(q.pop(), None);
-    }
-
-    #[test]
     fn engine_two_track_demo_renders() {
         use crate::engine::{Engine, Plugin, PluginTag, Track};
         use crate::midi::{Note, beats_to_frames};
@@ -149,12 +131,5 @@ mod tests {
 
     fn ctx_block() -> usize {
         BLOCK
-    }
-
-    #[test]
-    fn bounded_list_basic() {
-        let mut l: BoundedList<u8, 4> = BoundedList::from_slice(&[1, 2]);
-        l.append_assume_capacity(3);
-        assert_eq!(l.as_slice(), &[1, 2, 3]);
     }
 }
