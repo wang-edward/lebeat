@@ -35,12 +35,6 @@ impl PluginTag {
     }
 }
 
-/// Which knob a key tweaks, and the result of a plugin key event.
-pub enum PluginAction {
-    None,
-    GoBack,
-}
-
 pub enum Plugin {
     Lpf(Lpf),
     Delay(Delay),
@@ -84,41 +78,6 @@ impl Plugin {
             ],
         }
     }
-
-    /// Keys 1..6 nudge the three knobs down/up by 0.1; backspace goes back.
-    /// (Mirrors `plugin.zig`'s handle_event, raylib-free.)
-    pub fn handle_key(&mut self, key: crate::input::Key) -> PluginAction {
-        use crate::input::Key::*;
-        macro_rules! nudge {
-            ($p:expr, $d:expr) => {{
-                let n = $p.get_norm();
-                $p.set_norm(n + $d);
-            }};
-        }
-        match self {
-            Plugin::Lpf(p) => match key {
-                Backspace => return PluginAction::GoBack,
-                One => nudge!(p.drive, -0.1),
-                Two => nudge!(p.drive, 0.1),
-                Three => nudge!(p.resonance, -0.1),
-                Four => nudge!(p.resonance, 0.1),
-                Five => nudge!(p.cutoff, -0.1),
-                Six => nudge!(p.cutoff, 0.1),
-                _ => {}
-            },
-            Plugin::Delay(p) => match key {
-                Backspace => return PluginAction::GoBack,
-                One => nudge!(p.delay_time, -0.1),
-                Two => nudge!(p.delay_time, 0.1),
-                Three => nudge!(p.feedback, -0.1),
-                Four => nudge!(p.feedback, 0.1),
-                Five => nudge!(p.mix, -0.1),
-                Six => nudge!(p.mix, 0.1),
-                _ => {}
-            },
-        }
-        PluginAction::None
-    }
 }
 
 // ------------------------------------------------------------------ Track
@@ -161,13 +120,43 @@ impl Track {
     }
 }
 
+// ------------------------------------------------------------------ Timeline
+
+pub struct Timeline {
+    tracks: Vec<Track>,
+    pub active_track: usize,
+    pub playhead: u64,
+}
+
+impl Timeline {
+    fn new() -> Self {
+        let mut tracks = Vec::new();
+        tracks.reserve_exact(MAX_TRACKS);
+        Self {
+            tracks,
+            active_track: 0,
+            playhead: 0,
+        }
+    }
+
+    pub fn track_count(&self) -> usize {
+        self.tracks.len()
+    }
+
+    pub fn tracks(&self) -> &[Track] {
+        &self.tracks
+    }
+
+    pub fn track(&self, i: usize) -> &Track {
+        &self.tracks[i]
+    }
+}
+
 // ------------------------------------------------------------------ Engine
 
 pub struct Engine {
     ctx: Context,
-    tracks: Vec<Track>,
-    pub active_track: usize,
-    pub playhead: u64,
+    pub timeline: Timeline,
     pub playing: bool,
     pub recording: bool,
 
@@ -177,13 +166,9 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(sample_rate: f32, bpm: f32) -> Self {
-        let mut tracks = Vec::new();
-        tracks.reserve_exact(MAX_TRACKS);
         Self {
             ctx: Context::new(sample_rate, bpm),
-            tracks,
-            active_track: 0,
-            playhead: 0,
+            timeline: Timeline::new(),
             playing: false,
             recording: false,
             held_notes: [None; 128],
@@ -198,77 +183,78 @@ impl Engine {
         self.ctx.bpm
     }
     pub fn track_count(&self) -> usize {
-        self.tracks.len()
+        self.timeline.tracks.len()
     }
     pub fn tracks(&self) -> &[Track] {
-        &self.tracks
+        &self.timeline.tracks
     }
     pub fn track(&self, i: usize) -> &Track {
-        &self.tracks[i]
+        &self.timeline.tracks[i]
     }
     pub fn track_mut(&mut self, i: usize) -> &mut Track {
-        &mut self.tracks[i]
+        &mut self.timeline.tracks[i]
     }
     pub fn active(&self) -> &Track {
-        &self.tracks[self.active_track]
+        &self.timeline.tracks[self.timeline.active_track]
     }
     pub fn active_mut(&mut self) -> &mut Track {
-        &mut self.tracks[self.active_track]
+        &mut self.timeline.tracks[self.timeline.active_track]
     }
 
     pub fn add_track(&mut self, track: Track) {
-        if self.tracks.len() < MAX_TRACKS {
-            self.tracks.push(track);
+        if self.timeline.tracks.len() < MAX_TRACKS {
+            self.timeline.tracks.push(track);
         }
     }
 
     pub fn remove_track(&mut self, idx: usize) {
-        if idx < self.tracks.len() && self.tracks.len() > 1 {
-            self.tracks.remove(idx);
-            if self.active_track >= self.tracks.len() {
-                self.active_track = self.tracks.len() - 1;
+        if idx < self.timeline.tracks.len() && self.timeline.tracks.len() > 1 {
+            self.timeline.tracks.remove(idx);
+            if self.timeline.active_track >= self.timeline.tracks.len() {
+                self.timeline.active_track = self.timeline.tracks.len() - 1;
             }
         }
     }
 
     pub fn set_active_track(&mut self, idx: usize) {
-        let n = self.tracks.len();
-        self.active_track = if n > 0 { idx.min(n - 1) } else { 0 };
+        let n = self.timeline.tracks.len();
+        self.timeline.active_track = if n > 0 { idx.min(n - 1) } else { 0 };
     }
 
     pub fn add_plugin(&mut self, track_idx: usize, plugin: Plugin) {
-        if track_idx < self.tracks.len() {
-            self.tracks[track_idx].add_plugin(plugin);
+        if track_idx < self.timeline.tracks.len() {
+            self.timeline.tracks[track_idx].add_plugin(plugin);
         }
     }
 
     // --- live keyboard notes (UI calls these under the lock) ---
 
     pub fn note_on(&mut self, note: u8) {
-        let at = self.active_track;
-        self.tracks[at].synth.note_on(note);
+        let at = self.timeline.active_track;
+        self.timeline.tracks[at].synth.note_on(note);
         if self.recording && self.playing {
-            self.held_notes[note as usize] = Some(self.playhead);
+            self.held_notes[note as usize] = Some(self.timeline.playhead);
         }
     }
 
     pub fn note_off(&mut self, note: u8) {
-        let at = self.active_track;
-        self.tracks[at].synth.note_off(note);
-        if self.recording && self.playing {
-            if let Some(start) = self.held_notes[note as usize] {
-                self.record_buffer.push(Note {
-                    start,
-                    end: self.playhead,
-                    note,
-                });
-                self.held_notes[note as usize] = None;
-            }
+        let at = self.timeline.active_track;
+        self.timeline.tracks[at].synth.note_off(note);
+        if self.recording
+            && self.playing
+            && let Some(start) = self.held_notes[note as usize]
+        {
+            self.record_buffer.push(Note {
+                start,
+                end: self.timeline.playhead,
+                note,
+            });
+            self.held_notes[note as usize] = None;
         }
     }
 
     fn all_notes_off(&mut self) {
-        for t in &mut self.tracks {
+        for t in &mut self.timeline.tracks {
             t.synth.all_notes_off();
         }
     }
@@ -289,19 +275,19 @@ impl Engine {
 
     pub fn reset(&mut self) {
         self.all_notes_off();
-        self.playhead = 0;
+        self.timeline.playhead = 0;
     }
 
     pub fn set_playhead(&mut self, frame: u64) {
-        self.playhead = frame;
+        self.timeline.playhead = frame;
     }
 
     pub fn toggle_record(&mut self) {
         if self.recording {
             if !self.record_buffer.is_empty() {
-                let at = self.active_track;
+                let at = self.timeline.active_track;
                 let buf = std::mem::take(&mut self.record_buffer);
-                self.tracks[at].notes.extend_from_slice(&buf);
+                self.timeline.tracks[at].notes.extend_from_slice(&buf);
             }
             self.held_notes = [None; 128];
             self.recording = false;
@@ -324,7 +310,7 @@ impl Engine {
         // mix all tracks
         let n = out.len();
         out.fill(0.0);
-        for t in &mut self.tracks {
+        for t in &mut self.timeline.tracks {
             let tmp = self.ctx.tmp(n);
             t.process(&self.ctx, tmp);
             for (o, s) in out.iter_mut().zip(tmp.iter()) {
@@ -336,12 +322,12 @@ impl Engine {
 
         // advance playhead + fire sequenced notes for the span we just rendered
         if self.playing {
-            let start = self.playhead;
-            self.playhead += n as u64;
-            let end = self.playhead;
+            let start = self.timeline.playhead;
+            self.timeline.playhead += n as u64;
+            let end = self.timeline.playhead;
 
             let mut msgs = [NoteMsg::On(0); midi::MAX_NOTES_PER_BLOCK];
-            for t in &mut self.tracks {
+            for t in &mut self.timeline.tracks {
                 let mut count = 0;
                 for note in &t.notes {
                     if start <= note.start && note.start < end && count < msgs.len() {

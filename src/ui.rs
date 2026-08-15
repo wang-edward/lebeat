@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use raylib::prelude::*;
 
-use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginAction, PluginTag};
+use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginTag};
 use crate::input::{Event, EventType, Key};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
@@ -25,10 +25,15 @@ enum Mode {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Screen {
+enum TimelineScreen {
     Overview,
     MidiEditor,
-    TrackOverview,
+    Track,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TrackScreen {
+    Overview,
     Plugin,
     PluginSelector,
 }
@@ -89,17 +94,24 @@ pub struct App {
     icons: Icons,
 
     mode: Mode,
-    screen: Screen,
     note_offset: i16,
     active_notes: HashMap<Key, u8>,
+    timeline: TimelineUi,
+}
 
-    selector_index: usize,
-    active_plugin: usize,
-
+struct TimelineUi {
+    screen: TimelineScreen,
     frame: BeatFrame,
     bar_width: f32,
     cursor: BeatWindow,
     step_size: f32,
+    track: TrackUi,
+}
+
+struct TrackUi {
+    screen: TrackScreen,
+    active_plugin: usize,
+    selector_index: usize,
 }
 
 const HEADER_HEIGHT: i32 = 12;
@@ -111,29 +123,9 @@ impl App {
             engine,
             icons,
             mode: Mode::Normal,
-            screen: Screen::Overview,
             note_offset: 0,
             active_notes: HashMap::new(),
-            selector_index: 0,
-            active_plugin: 0,
-            frame: BeatFrame {
-                center: 0.0,
-                radius: 8.0,
-            },
-            bar_width: 4.0,
-            cursor: BeatWindow {
-                start: 0.0,
-                len: 4.0,
-            },
-            step_size: 4.0,
-        }
-    }
-
-    fn cursor_focus(&mut self) {
-        if self.cursor.left() < self.frame.left() {
-            self.frame.center -= self.frame.left() - self.cursor.left();
-        } else if self.cursor.right() > self.frame.right() {
-            self.frame.center += self.cursor.right() - self.frame.right();
+            timeline: TimelineUi::new(),
         }
     }
 
@@ -150,7 +142,8 @@ impl App {
                     self.mode = Mode::Insert;
                     return;
                 }
-                self.handle_normal(ev);
+                let mut eng = self.engine.lock().unwrap();
+                self.timeline.handle_event(ev, &mut eng);
             }
         }
     }
@@ -193,146 +186,12 @@ impl App {
         }
     }
 
-    fn handle_normal(&mut self, ev: Event) {
-        match self.screen {
-            Screen::Overview => self.handle_overview(ev),
-            Screen::MidiEditor => {
-                if ev.key == Key::Backspace {
-                    self.screen = Screen::Overview;
-                }
-            }
-            Screen::TrackOverview => self.handle_track_overview(ev),
-            Screen::Plugin => {
-                let mut eng = self.engine.lock().unwrap();
-                let at = eng.active_track;
-                if self.active_plugin < eng.track(at).plugins.len() {
-                    match eng.track_mut(at).plugins[self.active_plugin].handle_key(ev.key) {
-                        PluginAction::GoBack => self.screen = Screen::TrackOverview,
-                        PluginAction::None => {}
-                    }
-                }
-            }
-            Screen::PluginSelector => self.handle_plugin_selector(ev),
-        }
-    }
-
-    fn handle_overview(&mut self, ev: Event) {
-        let mut eng = self.engine.lock().unwrap();
-        match ev.key {
-            Key::Enter => self.screen = Screen::TrackOverview,
-            Key::E => self.screen = Screen::MidiEditor,
-            Key::H => {
-                self.cursor.start -= self.step_size;
-                drop(eng);
-                self.cursor_focus();
-            }
-            Key::L => {
-                self.cursor.start += self.step_size;
-                drop(eng);
-                self.cursor_focus();
-            }
-            Key::J => {
-                let at = eng.active_track;
-                if at + 1 < eng.track_count() {
-                    eng.set_active_track(at + 1);
-                }
-            }
-            Key::K => {
-                let at = eng.active_track;
-                if at > 0 {
-                    eng.set_active_track(at - 1);
-                }
-            }
-            Key::Space => eng.toggle_play(),
-            Key::Backspace => eng.reset(),
-            Key::R => eng.toggle_record(),
-            Key::Equal => {
-                if eng.track_count() < crate::engine::MAX_TRACKS {
-                    eng.add_track(crate::engine::Track::new(&[]));
-                }
-            }
-            Key::Minus => {
-                if eng.track_count() > 1 {
-                    let idx = eng.active_track;
-                    eng.remove_track(idx);
-                }
-            }
-            Key::RightBracket => self.frame.radius = (self.frame.radius / 2.0).max(2.0),
-            Key::LeftBracket => self.frame.radius = (self.frame.radius * 2.0).min(128.0),
-            _ => {}
-        }
-    }
-
-    fn handle_track_overview(&mut self, ev: Event) {
-        let eng = self.engine.lock().unwrap();
-        let at = eng.active_track;
-        let plugin_count = eng.track(at).plugins.len();
-        drop(eng);
-        match ev.key {
-            Key::Backspace => self.screen = Screen::Overview,
-            Key::A => self.screen = Screen::PluginSelector,
-            Key::Enter => {
-                if plugin_count > 0 {
-                    self.screen = Screen::Plugin;
-                }
-            }
-            Key::L => {
-                if plugin_count > 0 {
-                    self.active_plugin = (self.active_plugin + 1).min(plugin_count - 1);
-                }
-            }
-            Key::H => {
-                if self.active_plugin > 0 {
-                    self.active_plugin -= 1;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn handle_plugin_selector(&mut self, ev: Event) {
-        match ev.key {
-            Key::Backspace => self.screen = Screen::TrackOverview,
-            Key::K => {
-                if self.selector_index > 0 {
-                    self.selector_index -= 1;
-                }
-            }
-            Key::J => {
-                if self.selector_index + 1 < PLUGIN_LIST.len() {
-                    self.selector_index += 1;
-                }
-            }
-            Key::Enter => {
-                let tag = PLUGIN_LIST[self.selector_index];
-                let p = Plugin::new(tag);
-                {
-                    let mut eng = self.engine.lock().unwrap();
-                    let at = eng.active_track;
-                    eng.add_plugin(at, p);
-                }
-                self.screen = Screen::TrackOverview;
-            }
-            _ => {}
-        }
-    }
-
     // -------------------------------------------------------------- render
 
     pub fn render<D: RaylibDraw>(&mut self, d: &mut D) {
-        let engine = self.engine.clone(); // Arc bump
-        let eng = engine.lock().unwrap();
-        match self.screen {
-            Screen::Overview => self.render_overview(d, &eng),
-            Screen::MidiEditor => {
-                d.draw_text("MIDI_EDITOR", 30, 30, 10, Color::LIGHTGRAY);
-            }
-            Screen::TrackOverview => self.render_track_overview(d, &eng),
-            Screen::Plugin => self.render_plugin(d, &eng),
-            Screen::PluginSelector => self.render_plugin_selector(d),
-        }
+        let eng = self.engine.lock().unwrap();
+        self.timeline.draw(d, &eng, &self.icons);
 
-        // mode / recording overlays
         if self.mode == Mode::Insert {
             d.draw_rectangle_lines(0, 0, WIDTH, HEIGHT, Color::PURPLE);
         }
@@ -340,12 +199,105 @@ impl App {
             d.draw_rectangle_lines(1, 1, WIDTH - 2, HEIGHT - 2, Color::RED);
         }
     }
+}
 
-    fn render_overview<D: RaylibDraw>(&mut self, d: &mut D, eng: &Engine) {
+impl TimelineUi {
+    fn new() -> Self {
+        Self {
+            screen: TimelineScreen::Overview,
+            frame: BeatFrame {
+                center: 0.0,
+                radius: 8.0,
+            },
+            bar_width: 4.0,
+            cursor: BeatWindow {
+                start: 0.0,
+                len: 4.0,
+            },
+            step_size: 4.0,
+            track: TrackUi::new(),
+        }
+    }
+
+    fn cursor_focus(&mut self) {
+        if self.cursor.left() < self.frame.left() {
+            self.frame.center -= self.frame.left() - self.cursor.left();
+        } else if self.cursor.right() > self.frame.right() {
+            self.frame.center += self.cursor.right() - self.frame.right();
+        }
+    }
+
+    fn handle_event(&mut self, ev: Event, eng: &mut Engine) {
+        match self.screen {
+            TimelineScreen::Overview => self.handle_overview(ev, eng),
+            TimelineScreen::MidiEditor => {
+                if ev.key == Key::Backspace {
+                    self.screen = TimelineScreen::Overview;
+                }
+            }
+            TimelineScreen::Track => {
+                if self.track.handle_event(ev, eng) {
+                    self.screen = TimelineScreen::Overview;
+                }
+            }
+        }
+    }
+
+    fn handle_overview(&mut self, ev: Event, eng: &mut Engine) {
+        match ev.key {
+            Key::Enter => self.screen = TimelineScreen::Track,
+            Key::E => self.screen = TimelineScreen::MidiEditor,
+            Key::H => {
+                self.cursor.start -= self.step_size;
+                self.cursor_focus();
+            }
+            Key::L => {
+                self.cursor.start += self.step_size;
+                self.cursor_focus();
+            }
+            Key::J => {
+                let at = eng.timeline.active_track;
+                if at + 1 < eng.track_count() {
+                    eng.set_active_track(at + 1);
+                }
+            }
+            Key::K => {
+                let at = eng.timeline.active_track;
+                if at > 0 {
+                    eng.set_active_track(at - 1);
+                }
+            }
+            Key::Space => eng.toggle_play(),
+            Key::Backspace => eng.reset(),
+            Key::R => eng.toggle_record(),
+            Key::Equal if eng.track_count() < crate::engine::MAX_TRACKS => {
+                eng.add_track(crate::engine::Track::new(&[]));
+            }
+            Key::Minus if eng.track_count() > 1 => {
+                let idx = eng.timeline.active_track;
+                eng.remove_track(idx);
+            }
+            Key::RightBracket => self.frame.radius = (self.frame.radius / 2.0).max(2.0),
+            Key::LeftBracket => self.frame.radius = (self.frame.radius * 2.0).min(128.0),
+            _ => {}
+        }
+    }
+
+    fn draw<D: RaylibDraw>(&mut self, d: &mut D, eng: &Engine, icons: &Icons) {
+        match self.screen {
+            TimelineScreen::Overview => self.draw_overview(d, eng),
+            TimelineScreen::MidiEditor => {
+                d.draw_text("MIDI_EDITOR", 30, 30, 10, Color::LIGHTGRAY);
+            }
+            TimelineScreen::Track => self.track.draw(d, eng, icons),
+        }
+    }
+
+    fn draw_overview<D: RaylibDraw>(&mut self, d: &mut D, eng: &Engine) {
         d.draw_text("TIMELINE_OVERVIEW", 30, 30, 10, Color::LIGHTGRAY);
         let w = WIDTH as f32;
         let num_rows = eng.track_count().min(crate::engine::MAX_TRACKS);
-        let b = frames_to_beats(eng.playhead, eng.bpm(), eng.sample_rate());
+        let b = frames_to_beats(eng.timeline.playhead, eng.bpm(), eng.sample_rate());
 
         if b > self.frame.right() || b < self.frame.left() {
             self.frame.center = b;
@@ -394,7 +346,7 @@ impl App {
         }
 
         // active track highlight
-        let row = eng.active_track as i32;
+        let row = eng.timeline.active_track as i32;
         let y = row * ROW_HEIGHT + HEADER_HEIGHT;
         d.draw_rectangle_lines(0, y, WIDTH, ROW_HEIGHT, Color::RED);
 
@@ -412,9 +364,110 @@ impl App {
         let rx = (rp * w) as i32;
         d.draw_rectangle_lines(lx, y, rx - lx, ROW_HEIGHT, Color::ORANGE);
     }
+}
 
-    fn render_track_overview<D: RaylibDraw>(&self, d: &mut D, eng: &Engine) {
-        let at = eng.active_track;
+impl TrackUi {
+    fn new() -> Self {
+        Self {
+            screen: TrackScreen::Overview,
+            active_plugin: 0,
+            selector_index: 0,
+        }
+    }
+
+    fn handle_event(&mut self, ev: Event, eng: &mut Engine) -> bool {
+        match self.screen {
+            TrackScreen::Overview => self.handle_overview(ev, eng),
+            TrackScreen::Plugin => {
+                self.handle_plugin(ev, eng);
+                false
+            }
+            TrackScreen::PluginSelector => {
+                self.handle_plugin_selector(ev, eng);
+                false
+            }
+        }
+    }
+
+    fn handle_overview(&mut self, ev: Event, eng: &Engine) -> bool {
+        let plugin_count = eng.active().plugins.len();
+        match ev.key {
+            Key::Backspace => return true,
+            Key::A => self.screen = TrackScreen::PluginSelector,
+            Key::Enter if plugin_count > 0 => self.screen = TrackScreen::Plugin,
+            Key::L if plugin_count > 0 => {
+                self.active_plugin = (self.active_plugin + 1).min(plugin_count - 1);
+            }
+            Key::H if self.active_plugin > 0 => self.active_plugin -= 1,
+            _ => {}
+        }
+        false
+    }
+
+    fn handle_plugin(&mut self, ev: Event, eng: &mut Engine) {
+        if ev.key == Key::Backspace {
+            self.screen = TrackScreen::Overview;
+            return;
+        }
+
+        let plugin = match eng.active_mut().plugins.get_mut(self.active_plugin) {
+            Some(plugin) => plugin,
+            None => return,
+        };
+        macro_rules! nudge {
+            ($param:expr, $delta:expr) => {{
+                let norm = $param.get_norm();
+                $param.set_norm(norm + $delta);
+            }};
+        }
+        match plugin {
+            Plugin::Lpf(p) => match ev.key {
+                Key::One => nudge!(p.drive, -0.1),
+                Key::Two => nudge!(p.drive, 0.1),
+                Key::Three => nudge!(p.resonance, -0.1),
+                Key::Four => nudge!(p.resonance, 0.1),
+                Key::Five => nudge!(p.cutoff, -0.1),
+                Key::Six => nudge!(p.cutoff, 0.1),
+                _ => {}
+            },
+            Plugin::Delay(p) => match ev.key {
+                Key::One => nudge!(p.delay_time, -0.1),
+                Key::Two => nudge!(p.delay_time, 0.1),
+                Key::Three => nudge!(p.feedback, -0.1),
+                Key::Four => nudge!(p.feedback, 0.1),
+                Key::Five => nudge!(p.mix, -0.1),
+                Key::Six => nudge!(p.mix, 0.1),
+                _ => {}
+            },
+        }
+    }
+
+    fn handle_plugin_selector(&mut self, ev: Event, eng: &mut Engine) {
+        match ev.key {
+            Key::Backspace => self.screen = TrackScreen::Overview,
+            Key::K if self.selector_index > 0 => self.selector_index -= 1,
+            Key::J if self.selector_index + 1 < PLUGIN_LIST.len() => self.selector_index += 1,
+            Key::Enter => {
+                eng.add_plugin(
+                    eng.timeline.active_track,
+                    Plugin::new(PLUGIN_LIST[self.selector_index]),
+                );
+                self.screen = TrackScreen::Overview;
+            }
+            _ => {}
+        }
+    }
+
+    fn draw<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons) {
+        match self.screen {
+            TrackScreen::Overview => self.draw_overview(d, eng, icons),
+            TrackScreen::Plugin => self.draw_plugin(d, eng),
+            TrackScreen::PluginSelector => self.draw_plugin_selector(d),
+        }
+    }
+
+    fn draw_overview<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons) {
+        let at = eng.timeline.active_track;
         let track = eng.track(at);
 
         d.draw_rectangle(0, 0, 32, 32, Color::RED);
@@ -432,7 +485,7 @@ impl App {
             let x = (i as i32 % 4) * 32 + 16;
             let y = (i as i32 / 4) * 32 + 64 + 16;
             let tag = track.plugins[i].tag();
-            if let Some(tex) = self.icons.get(tag) {
+            if let Some(tex) = icons.get(tag) {
                 d.draw_texture(tex, x - 8, y - 8, Color::WHITE);
             }
             let name = tag.name();
@@ -452,8 +505,8 @@ impl App {
         d.draw_text("TRACK", 30, 30, 10, Color::LIGHTGRAY);
     }
 
-    fn render_plugin<D: RaylibDraw>(&self, d: &mut D, eng: &Engine) {
-        let at = eng.active_track;
+    fn draw_plugin<D: RaylibDraw>(&self, d: &mut D, eng: &Engine) {
+        let at = eng.timeline.active_track;
         let track = eng.track(at);
         if self.active_plugin >= track.plugins.len() {
             return;
@@ -473,7 +526,7 @@ impl App {
         draw_text_centered(d, label, 64, 64, 10, color);
     }
 
-    fn render_plugin_selector<D: RaylibDraw>(&self, d: &mut D) {
+    fn draw_plugin_selector<D: RaylibDraw>(&self, d: &mut D) {
         for (i, tag) in PLUGIN_LIST.iter().enumerate() {
             let y = i as i32 * 16;
             let color = if i == self.selector_index {
