@@ -129,8 +129,6 @@ impl App {
         }
     }
 
-    // -------------------------------------------------------------- input
-
     pub fn handle_event(&mut self, ev: Event) {
         match self.mode {
             Mode::Insert => {
@@ -183,8 +181,6 @@ impl App {
             }
         }
     }
-
-    // -------------------------------------------------------------- render
 
     pub fn render<D: RaylibDraw>(&mut self, d: &mut D) {
         let eng = self.engine.lock().unwrap();
