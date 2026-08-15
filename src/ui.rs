@@ -377,7 +377,7 @@ impl App {
             let row_y = i as i32 * ROW_HEIGHT + HEADER_HEIGHT;
             d.draw_rectangle_lines(0, row_y, WIDTH, ROW_HEIGHT, Color::DARKGRAY);
 
-            for note in &eng.track(i).player.notes {
+            for note in &eng.track(i).notes {
                 let sb = frames_to_beats(note.start, eng.bpm(), eng.sample_rate());
                 let eb = frames_to_beats(note.end, eng.bpm(), eng.sample_rate());
                 if eb < self.frame.left() || sb > self.frame.right() {

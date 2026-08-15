@@ -18,7 +18,7 @@ pub mod ui;
 #[cfg(test)]
 mod tests {
     use crate::audio::Context;
-    use crate::midi::{self, Note, NoteMsg, Player};
+    use crate::midi::{self, Note};
     use crate::synth::Uni;
 
     const SR: f32 = 48_000.0;
@@ -68,22 +68,20 @@ mod tests {
     }
 
     #[test]
-    fn player_advance_emits_on_then_off() {
+    fn track_owns_its_notes() {
+        use crate::engine::Track;
+
         let notes = [Note {
             start: 10,
             end: 100,
             note: 60,
         }];
-        let p = Player::new(&notes);
-        let mut out = [NoteMsg::On(0); 8];
+        let track = Track::new(&notes);
 
-        let n = p.advance(0, 50, &mut out);
-        assert_eq!(n, 1);
-        assert!(matches!(out[0], NoteMsg::On(60)));
-
-        let n = p.advance(50, 150, &mut out);
-        assert_eq!(n, 1);
-        assert!(matches!(out[0], NoteMsg::Off(60)));
+        assert_eq!(track.notes.len(), 1);
+        assert_eq!(track.notes[0].start, 10);
+        assert_eq!(track.notes[0].end, 100);
+        assert_eq!(track.notes[0].note, 60);
     }
 
     #[test]

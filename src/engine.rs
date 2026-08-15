@@ -1,5 +1,5 @@
 //! The audio engine: a raylib-free, `Send` graph that owns everything the audio thread
-//! touches — timeline, tracks, synths, DSP plugins, players, and playback/record state.
+//! touches — timeline, tracks, synths, DSP plugins, and playback/record state.
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
@@ -10,7 +10,7 @@
 //! (The tested `queue::SpscQueue` is still available if you want the lock-free split back.)
 
 use crate::audio::{Context, Delay, Lpf, Sample};
-use crate::midi::{self, Frame, Note, NoteMsg, Player};
+use crate::midi::{self, Frame, Note, NoteMsg};
 use crate::synth::Uni;
 
 pub const MAX_TRACKS: usize = 8;
@@ -125,7 +125,6 @@ impl Plugin {
 
 pub struct Track {
     pub synth: Uni,
-    pub player: Player,
     pub notes: Vec<Note>,
     pub plugins: Vec<Plugin>,
 }
@@ -136,7 +135,7 @@ impl Track {
         plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
         Self {
             synth: Uni::new(),
-            player: Player::new(notes),
+            notes: notes.to_vec(),
             plugins,
         }
     }
@@ -302,7 +301,7 @@ impl Engine {
             if !self.record_buffer.is_empty() {
                 let at = self.active_track;
                 let buf = std::mem::take(&mut self.record_buffer);
-                self.tracks[at].player.append_notes(&buf);
+                self.tracks[at].notes.extend_from_slice(&buf);
             }
             self.held_notes = [None; 128];
             self.recording = false;
@@ -343,7 +342,17 @@ impl Engine {
 
             let mut msgs = [NoteMsg::On(0); midi::MAX_NOTES_PER_BLOCK];
             for t in &mut self.tracks {
-                let count = t.player.advance(start, end, &mut msgs);
+                let mut count = 0;
+                for note in &t.notes {
+                    if start <= note.start && note.start < end && count < msgs.len() {
+                        msgs[count] = NoteMsg::On(note.note);
+                        count += 1;
+                    }
+                    if start <= note.end && note.end < end && count < msgs.len() {
+                        msgs[count] = NoteMsg::Off(note.note);
+                        count += 1;
+                    }
+                }
                 for m in &msgs[..count] {
                     match *m {
                         NoteMsg::On(note) => t.synth.note_on(note),
