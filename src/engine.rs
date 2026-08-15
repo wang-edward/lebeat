@@ -126,6 +126,7 @@ impl Plugin {
 pub struct Track {
     pub synth: Uni,
     pub player: Player,
+    pub notes: Vec<Note>,
     pub plugins: Vec<Plugin>,
 }
 
