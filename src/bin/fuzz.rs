@@ -6,8 +6,8 @@ use raylib::prelude::*;
 use ledaw::audio_out;
 use ledaw::engine::{Engine, Track};
 use ledaw::input::{Event, EventType, POLL_KEYS};
-use ledaw::interface::{self, HEIGHT, WIDTH};
-use ledaw::midi::{Note, beats_to_frames};
+use ledaw::interface::{HEIGHT, WIDTH};
+use ledaw::midi::beats_to_frames;
 use ledaw::ui::{App, Icons};
 
 /// SplitMix64. No `rand` dependency, seedable for reproducible runs.
@@ -74,7 +74,7 @@ fn main() {
             let duration = 0.1 + rng.below(10) as f32 * 0.1;
             let frames = beats_to_frames(duration, tempo, sr);
             let mut e = engine.lock().unwrap();
-            let pos = e.playhead + frames;
+            let pos = e.timeline.playhead + frames;
             e.set_playhead(pos);
         }
 

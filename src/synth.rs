@@ -47,11 +47,11 @@ impl Voice {
     }
 
     fn set_note_off(&mut self, note: u8) {
-        if let NoteState::On(on) = self.note_state {
-            if on == note {
-                self.note_state = NoteState::Off;
-                self.adsr.note_off();
-            }
+        if let NoteState::On(on) = self.note_state
+            && on == note
+        {
+            self.note_state = NoteState::Off;
+            self.adsr.note_off();
         }
     }
 }
