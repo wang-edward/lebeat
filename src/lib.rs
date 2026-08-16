@@ -27,17 +27,16 @@ mod tests {
 
     #[test]
     fn synth_produces_finite_audio_and_releases() {
-        let mut ctx = Context::new(SR, 120.0);
+        let ctx = Context::new(SR, 120.0);
         let mut synth = Uni::new();
+        let mut out = vec![0.0; BLOCK];
 
         synth.note_on(69); // A4
         synth.note_on(72);
 
         let mut peak = 0.0f32;
         for _ in 0..50 {
-            ctx.begin_block();
-            let out = ctx.tmp(BLOCK);
-            synth.render(&ctx, out);
+            synth.render(&ctx, &mut out);
             for &s in out.iter() {
                 assert!(s.is_finite(), "non-finite sample");
                 peak = peak.max(s.abs());
@@ -49,23 +48,9 @@ mod tests {
         synth.note_off(72);
         // run long enough for the 0.6s release to finish
         for _ in 0..(SR as usize / BLOCK + 200) {
-            ctx.begin_block();
-            let out = ctx.tmp(BLOCK);
-            synth.render(&ctx, out);
+            synth.render(&ctx, &mut out);
         }
         assert!(synth.is_idle(), "voices never returned to idle");
-    }
-
-    #[test]
-    fn bump_hands_out_disjoint_scratch() {
-        // The crux of the arena port: multiple tmp() slices from one &Context must not alias.
-        let ctx = Context::new(SR, 120.0);
-        let a = ctx.tmp(4);
-        let b = ctx.tmp(4);
-        a[0] = 1.0;
-        b[0] = 2.0;
-        assert_eq!(a[0], 1.0);
-        assert_eq!(b[0], 2.0);
     }
 
     #[test]

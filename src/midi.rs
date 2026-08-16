@@ -3,19 +3,12 @@
 use crate::input::Key;
 
 pub type Frame = u64;
-pub const MAX_NOTES_PER_BLOCK: usize = 1024;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Note {
     pub start: Frame,
     pub end: Frame,
     pub note: u8,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum NoteMsg {
-    On(u8),
-    Off(u8),
 }
 
 pub fn beats_to_frames(beats: f32, tempo: f32, sample_rate: f32) -> Frame {

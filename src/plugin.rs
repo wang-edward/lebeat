@@ -64,7 +64,9 @@ impl LpfPlugin {
     }
 
     fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        self.dsp.render(ctx, buf);
+        for sample in buf {
+            *sample = self.dsp.process(ctx, *sample);
+        }
     }
 }
 
@@ -80,7 +82,9 @@ impl DelayPlugin {
     }
 
     fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        self.dsp.render(ctx, buf);
+        for sample in buf {
+            *sample = self.dsp.process(ctx, *sample);
+        }
     }
 }
 

@@ -2,10 +2,7 @@
 //! The engine renders mono; we fan it out to every output channel (matching the Zig
 //! behavior of copying the mono block to all channels).
 //!
-//! NOTE (real-time): this locks the shared `Mutex<Engine>` inside the audio callback,
-//! which is the one RT compromise of the desktop build. For a strictly lock-free audio
-//! thread, give the callback sole ownership of the engine and drive structural/note
-//! changes through `queue::SpscQueue` (as the Zig version did).
+//! NOTE (real-time): this locks the shared `Mutex<Engine>` inside the audio callback.
 
 use std::sync::{Arc, Mutex};
 

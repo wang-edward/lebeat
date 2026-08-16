@@ -1,8 +1,4 @@
-//! Port of `synth.zig`.
-//!
-//! Zig's `Voice` wired osc -> lpf -> adsr via stored input `Node`s (raw sibling pointers).
-//! Here the chain is concrete in-place processing: the osc fills a scratch buffer, then the
-//! lpf and adsr transform it in place. No vtable, no boxing, no self-reference.
+//! Polyphonic synth with an owned `Osc -> Lpf -> Adsr` chain per voice.
 
 use crate::audio::{Adsr, AdsrStage, Context, Lpf, Osc, OscKind, Sample};
 
@@ -32,11 +28,10 @@ impl Voice {
         }
     }
 
-    /// osc (source) -> lpf (in place) -> adsr (in place). Writes into `out`.
-    fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
-        self.osc.render(ctx, out);
-        self.lpf.render(ctx, out);
-        self.adsr.render(ctx, out);
+    fn next(&mut self, ctx: &Context) -> Sample {
+        let sample = self.osc.next(ctx);
+        let sample = self.lpf.process(ctx, sample);
+        self.adsr.process(ctx, sample)
     }
 
     fn set_note_on(&mut self, note: u8) {
@@ -101,16 +96,14 @@ impl Uni {
         }
     }
 
-    /// Source: sums all voices into `out`.
+    /// Sum all voices into `out`.
     pub fn render(&mut self, ctx: &Context, out: &mut [Sample]) {
         out.fill(0.0);
         let cutoff = self.cutoff;
         for v in &mut self.voices {
             v.lpf.cutoff.set(cutoff);
-            let tmp = ctx.tmp(out.len());
-            v.process(ctx, tmp);
-            for (o, t) in out.iter_mut().zip(tmp.iter()) {
-                *o += *t;
+            for sample in out.iter_mut() {
+                *sample += v.next(ctx);
             }
         }
     }

@@ -5,7 +5,6 @@ edition = "2024"
 default-run = "ledaw"
 
 [dependencies]
-bumpalo = "3"
 cpal = "0.15"
 raylib = "5"
 

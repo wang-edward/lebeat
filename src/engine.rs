@@ -1,16 +1,9 @@
-//! The audio engine: a `Send` graph that owns everything the audio thread
-//! touches — timeline, tracks, synths, DSP plugins, and playback/record state.
+//! The audio engine owns the timeline, tracks, synths, DSP plugins, and transport state.
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
-//! This folds together `project.zig` (Timeline/Track) and the audio-thread logic from
-//! `main.zig` (note/op handling, playhead advance, recording). The Zig version used a
-//! lock-free op queue so the audio thread was the sole mutator; under the mutex model that
-//! indirection is unnecessary — the UI mutates the engine directly while holding the lock.
-//! (The tested `queue::SpscQueue` is still available if you want the lock-free split back.)
-
 use crate::audio::{Context, Sample};
-use crate::midi::{self, Frame, Note, NoteMsg};
+use crate::midi::{Frame, Note};
 use crate::synth::Uni;
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
@@ -38,6 +31,7 @@ pub struct Track {
     pub synth: Uni,
     pub notes: Vec<Note>,
     pub plugins: Vec<Plugin>,
+    buffer: Vec<Sample>,
 }
 
 impl Engine {
@@ -186,17 +180,11 @@ impl Engine {
 
     /// Fill `out` (mono) with one block. Asserts finiteness in debug builds.
     pub fn process_block(&mut self, out: &mut [Sample]) {
-        self.ctx.begin_block();
-
         // mix all tracks
         let n = out.len();
         out.fill(0.0);
         for t in &mut self.timeline.tracks {
-            let tmp = self.ctx.tmp(n);
-            t.process(&self.ctx, tmp);
-            for (o, s) in out.iter_mut().zip(tmp.iter()) {
-                *o += *s;
-            }
+            t.process(&self.ctx, out);
         }
 
         debug_assert!(out.iter().all(|s| s.is_finite()), "NaN/inf in audio block");
@@ -207,23 +195,13 @@ impl Engine {
             self.timeline.playhead += n as u64;
             let end = self.timeline.playhead;
 
-            let mut msgs = [NoteMsg::On(0); midi::MAX_NOTES_PER_BLOCK];
             for t in &mut self.timeline.tracks {
-                let mut count = 0;
                 for note in &t.notes {
-                    if start <= note.start && note.start < end && count < msgs.len() {
-                        msgs[count] = NoteMsg::On(note.note);
-                        count += 1;
+                    if start <= note.start && note.start < end {
+                        t.synth.note_on(note.note);
                     }
-                    if start <= note.end && note.end < end && count < msgs.len() {
-                        msgs[count] = NoteMsg::Off(note.note);
-                        count += 1;
-                    }
-                }
-                for m in &msgs[..count] {
-                    match *m {
-                        NoteMsg::On(note) => t.synth.note_on(note),
-                        NoteMsg::Off(note) => t.synth.note_off(note),
+                    if start <= note.end && note.end < end {
+                        t.synth.note_off(note.note);
                     }
                 }
             }
@@ -263,14 +241,22 @@ impl Track {
             synth: Uni::new(),
             notes: notes.to_vec(),
             plugins,
+            buffer: Vec::new(),
         }
     }
 
-    /// synth (source) then each plugin (in place).
+    /// Render this track into its owned buffer, then mix it into `out`.
     pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
-        self.synth.render(ctx, out);
+        if self.buffer.len() < out.len() {
+            self.buffer.resize(out.len(), 0.0);
+        }
+        let buffer = &mut self.buffer[..out.len()];
+        self.synth.render(ctx, buffer);
         for p in &mut self.plugins {
-            p.process(ctx, out);
+            p.process(ctx, buffer);
+        }
+        for (out, sample) in out.iter_mut().zip(buffer) {
+            *out += *sample;
         }
     }
 
