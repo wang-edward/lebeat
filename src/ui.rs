@@ -120,13 +120,14 @@ const ROW_HEIGHT: i32 = 28;
 
 impl App {
     pub fn new(engine: Arc<Mutex<Engine>>, icons: Icons) -> Self {
+        let track_count = engine.lock().unwrap().track_count();
         Self {
             engine,
             icons,
             mode: Mode::Normal,
             note_offset: 0,
             active_notes: HashMap::new(),
-            timeline: TimelineUi::new(),
+            timeline: TimelineUi::new(track_count),
         }
     }
 
@@ -197,7 +198,7 @@ impl App {
 }
 
 impl TimelineUi {
-    fn new() -> Self {
+    fn new(track_count: usize) -> Self {
         Self {
             screen: TimelineScreen::Overview,
             frame: BeatFrame {
@@ -210,7 +211,7 @@ impl TimelineUi {
                 len: 4.0,
             },
             step_size: 4.0,
-            tracks: Vec::new(),
+            tracks: (0..track_count).map(|_| TrackUi::new()).collect(),
         }
     }
 
@@ -251,10 +252,15 @@ impl TimelineUi {
                 Key::Backspace => eng.reset(),
                 Key::R => eng.toggle_record(),
                 Key::Equal if eng.track_count() < crate::engine::MAX_TRACKS => {
-                    eng.add_track(crate::engine::Track::new(&[]));
+                    if eng.add_track(crate::engine::Track::new(&[])) {
+                        self.tracks.push(TrackUi::new());
+                    }
                 }
                 Key::Minus if eng.track_count() > 1 => {
-                    eng.remove_track(eng.timeline.active_track);
+                    let at = eng.timeline.active_track;
+                    if eng.remove_track(at) {
+                        self.tracks.remove(at);
+                    }
                 }
                 Key::RightBracket => self.frame.radius = (self.frame.radius / 2.0).max(2.0),
                 Key::LeftBracket => self.frame.radius = (self.frame.radius * 2.0).min(128.0),
@@ -266,7 +272,8 @@ impl TimelineUi {
                 }
             }
             TimelineScreen::Track => {
-                if self.track.handle_event(ev, eng) {
+                let at = eng.timeline.active_track;
+                if self.tracks[at].handle_event(ev, eng, at) {
                     self.screen = TimelineScreen::Overview;
                 }
             }
@@ -274,6 +281,7 @@ impl TimelineUi {
     }
 
     fn render<D: RaylibDraw>(&mut self, d: &mut D, eng: &Engine, icons: &Icons) {
+        debug_assert_eq!(self.tracks.len(), eng.track_count());
         match self.screen {
             TimelineScreen::Overview => {
                 d.draw_text("TIMELINE_OVERVIEW", 30, 30, 10, Color::LIGHTGRAY);
@@ -342,7 +350,10 @@ impl TimelineUi {
             TimelineScreen::MidiEditor => {
                 d.draw_text("MIDI_EDITOR", 30, 30, 10, Color::LIGHTGRAY);
             }
-            TimelineScreen::Track => self.track.render(d, eng, icons),
+            TimelineScreen::Track => {
+                let at = eng.timeline.active_track;
+                self.tracks[at].render(d, eng, icons, at);
+            }
         }
     }
 }
@@ -356,10 +367,10 @@ impl TrackUi {
         }
     }
 
-    fn handle_event(&mut self, ev: Event, eng: &mut Engine) -> bool {
+    fn handle_event(&mut self, ev: Event, eng: &mut Engine, track_idx: usize) -> bool {
         match self.screen {
             TrackScreen::Overview => {
-                let plugin_count = eng.active().plugins.len();
+                let plugin_count = eng.track(track_idx).plugins.len();
                 match ev.key {
                     Key::Backspace => return true,
                     Key::A => self.screen = TrackScreen::PluginSelector,
@@ -372,7 +383,8 @@ impl TrackUi {
                 }
             }
             TrackScreen::Plugin => {
-                let Some(plugin) = eng.active_mut().plugins.get_mut(self.active_plugin) else {
+                let Some(plugin) = eng.track_mut(track_idx).plugins.get_mut(self.active_plugin)
+                else {
                     return false;
                 };
                 if let Action::GoBack = plugin.handle_event(ev) {
@@ -386,10 +398,7 @@ impl TrackUi {
                     self.selector_index += 1;
                 }
                 Key::Enter => {
-                    eng.add_plugin(
-                        eng.timeline.active_track,
-                        Plugin::new(PLUGIN_LIST[self.selector_index]),
-                    );
+                    eng.add_plugin(track_idx, Plugin::new(PLUGIN_LIST[self.selector_index]));
                     self.screen = TrackScreen::Overview;
                 }
                 _ => {}
@@ -398,13 +407,12 @@ impl TrackUi {
         false
     }
 
-    fn render<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons) {
+    fn render<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons, track_idx: usize) {
         match self.screen {
             TrackScreen::Overview => {
-                let at = eng.timeline.active_track;
-                let track = eng.track(at);
+                let track = eng.track(track_idx);
                 d.draw_rectangle(0, 0, 32, 32, Color::RED);
-                draw_text_centered(d, &at.to_string(), 16, 16, 8, Color::LIGHTGRAY);
+                draw_text_centered(d, &track_idx.to_string(), 16, 16, 8, Color::LIGHTGRAY);
 
                 for i in 0..5 {
                     d.draw_line(i * 32, 64, i * 32, 128, Color::WHITE);
@@ -437,7 +445,7 @@ impl TrackUi {
                 d.draw_text("TRACK", 30, 30, 10, Color::LIGHTGRAY);
             }
             TrackScreen::Plugin => {
-                let track = eng.active();
+                let track = eng.track(track_idx);
                 let Some(plugin) = track.plugins.get(self.active_plugin) else {
                     return;
                 };

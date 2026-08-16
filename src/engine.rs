@@ -19,8 +19,6 @@ pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;
 
 pub struct Engine {
-    // TODO have input_track: usize here
-    // and put active_track in ui.rs
     ctx: Context,
     pub timeline: Timeline,
     pub playing: bool,
@@ -72,25 +70,24 @@ impl Engine {
     pub fn track_mut(&mut self, i: usize) -> &mut Track {
         &mut self.timeline.tracks[i]
     }
-    pub fn active(&self) -> &Track {
-        &self.timeline.tracks[self.timeline.active_track]
-    }
-    pub fn active_mut(&mut self) -> &mut Track {
-        &mut self.timeline.tracks[self.timeline.active_track]
-    }
-
-    pub fn add_track(&mut self, track: Track) {
+    pub fn add_track(&mut self, track: Track) -> bool {
         if self.timeline.tracks.len() < MAX_TRACKS {
             self.timeline.tracks.push(track);
+            true
+        } else {
+            false
         }
     }
 
-    pub fn remove_track(&mut self, idx: usize) {
+    pub fn remove_track(&mut self, idx: usize) -> bool {
         if idx < self.timeline.tracks.len() && self.timeline.tracks.len() > 1 {
             self.timeline.tracks.remove(idx);
             if self.timeline.active_track >= self.timeline.tracks.len() {
                 self.timeline.active_track = self.timeline.tracks.len() - 1;
             }
+            true
+        } else {
+            false
         }
     }
 
