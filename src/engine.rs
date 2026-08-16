@@ -13,7 +13,7 @@ use crate::audio::{Context, Sample};
 use crate::midi::{self, Frame, Note, NoteMsg};
 use crate::synth::Uni;
 
-pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, Tag as PluginTag};
+pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
 
 pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;
@@ -96,10 +96,18 @@ impl Engine {
         self.timeline.active_track = if n > 0 { idx.min(n - 1) } else { 0 };
     }
 
-    pub fn add_plugin(&mut self, track_idx: usize, plugin: Plugin) {
-        if track_idx < self.timeline.tracks.len() {
-            self.timeline.tracks[track_idx].add_plugin(plugin);
-        }
+    pub fn add_plugin(&mut self, track_idx: usize, plugin: Plugin) -> bool {
+        self.timeline
+            .tracks
+            .get_mut(track_idx)
+            .is_some_and(|track| track.add_plugin(plugin))
+    }
+
+    pub fn remove_plugin(&mut self, track_idx: usize, plugin_idx: usize) -> bool {
+        self.timeline
+            .tracks
+            .get_mut(track_idx)
+            .is_some_and(|track| track.remove_plugin(plugin_idx))
     }
 
     pub fn note_on(&mut self, note: u8) {
@@ -266,15 +274,21 @@ impl Track {
         }
     }
 
-    pub fn add_plugin(&mut self, p: Plugin) {
+    pub fn add_plugin(&mut self, p: Plugin) -> bool {
         if self.plugins.len() < MAX_PLUGINS {
             self.plugins.push(p);
+            true
+        } else {
+            false
         }
     }
 
-    pub fn remove_plugin(&mut self, idx: usize) {
+    pub fn remove_plugin(&mut self, idx: usize) -> bool {
         if idx < self.plugins.len() {
             self.plugins.remove(idx);
+            true
+        } else {
+            false
         }
     }
 }

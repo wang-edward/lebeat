@@ -108,6 +108,8 @@ impl Plugin {
     }
 }
 
+pub struct PluginUi;
+
 pub struct LpfPlugin {
     dsp: Lpf,
     knobs: [Knob; 3],

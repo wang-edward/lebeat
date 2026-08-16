@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use raylib::prelude::*;
 
-use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginTag};
+use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginTag, PluginUi};
 use crate::input::{Event, EventType, Key};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
@@ -113,6 +113,7 @@ struct TrackUi {
     screen: TrackScreen,
     active_plugin: usize,
     selector_index: usize,
+    plugins: Vec<PluginUi>,
 }
 
 const HEADER_HEIGHT: i32 = 12;
@@ -364,10 +365,12 @@ impl TrackUi {
             screen: TrackScreen::Overview,
             active_plugin: 0,
             selector_index: 0,
+            plugins: Vec::new(),
         }
     }
 
     fn handle_event(&mut self, ev: Event, eng: &mut Engine, track_idx: usize) -> bool {
+        debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
                 let plugin_count = eng.track(track_idx).plugins.len();
@@ -383,6 +386,9 @@ impl TrackUi {
                 }
             }
             TrackScreen::Plugin => {
+                if self.plugins.get(self.active_plugin).is_none() {
+                    return false;
+                }
                 let Some(plugin) = eng.track_mut(track_idx).plugins.get_mut(self.active_plugin)
                 else {
                     return false;
@@ -398,8 +404,10 @@ impl TrackUi {
                     self.selector_index += 1;
                 }
                 Key::Enter => {
-                    eng.add_plugin(track_idx, Plugin::new(PLUGIN_LIST[self.selector_index]));
-                    self.screen = TrackScreen::Overview;
+                    if eng.add_plugin(track_idx, Plugin::new(PLUGIN_LIST[self.selector_index])) {
+                        self.plugins.push(PluginUi);
+                        self.screen = TrackScreen::Overview;
+                    }
                 }
                 _ => {}
             },
@@ -408,6 +416,7 @@ impl TrackUi {
     }
 
     fn render<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons, track_idx: usize) {
+        debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
                 let track = eng.track(track_idx);
@@ -446,6 +455,9 @@ impl TrackUi {
             }
             TrackScreen::Plugin => {
                 let track = eng.track(track_idx);
+                if self.plugins.get(self.active_plugin).is_none() {
+                    return;
+                }
                 let Some(plugin) = track.plugins.get(self.active_plugin) else {
                     return;
                 };
