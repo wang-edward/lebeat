@@ -393,7 +393,10 @@ impl TrackUi {
                 else {
                     return false;
                 };
-                if let Action::GoBack = plugin.handle_event(ev) {
+                let Some(ui) = self.plugins.get_mut(self.active_plugin) else {
+                    return false;
+                };
+                if let Action::GoBack = ui.handle_event(plugin, ev) {
                     self.screen = TrackScreen::Overview;
                 }
             }
@@ -404,8 +407,9 @@ impl TrackUi {
                     self.selector_index += 1;
                 }
                 Key::Enter => {
-                    if eng.add_plugin(track_idx, Plugin::new(PLUGIN_LIST[self.selector_index])) {
-                        self.plugins.push(PluginUi);
+                    let tag = PLUGIN_LIST[self.selector_index];
+                    if eng.add_plugin(track_idx, Plugin::new(tag)) {
+                        self.plugins.push(PluginUi::new(tag));
                         self.screen = TrackScreen::Overview;
                     }
                 }
@@ -461,7 +465,10 @@ impl TrackUi {
                 let Some(plugin) = track.plugins.get(self.active_plugin) else {
                     return;
                 };
-                plugin.render(d);
+                let Some(ui) = self.plugins.get(self.active_plugin) else {
+                    return;
+                };
+                ui.render(plugin, d);
             }
             TrackScreen::PluginSelector => {
                 for (i, tag) in PLUGIN_LIST.iter().enumerate() {

@@ -26,46 +26,6 @@ pub enum Action {
     GoBack,
 }
 
-pub struct Knob {
-    param: KnobParam,
-    pos: Vector2,
-    radius: f32,
-    color: Color,
-    name: &'static str,
-}
-
-#[derive(Clone, Copy)]
-enum KnobParam {
-    First,
-    Second,
-    Third,
-}
-
-impl Knob {
-    fn new(param: KnobParam, x: f32, y: f32, name: &'static str) -> Self {
-        Self {
-            param,
-            pos: Vector2::new(x, y),
-            radius: 10.0,
-            color: Color::WHITE,
-            name,
-        }
-    }
-
-    fn render<D: RaylibDraw>(&self, d: &mut D, param: &Param) {
-        let angle = param.get_norm() * 360.0;
-        d.draw_circle_sector(self.pos, self.radius, 0.0, angle, 360, self.color);
-        draw_text_centered(
-            d,
-            self.name,
-            self.pos.x as i32,
-            (self.pos.y + 20.0) as i32,
-            10,
-            self.color,
-        );
-    }
-}
-
 pub enum Plugin {
     Lpf(LpfPlugin),
     Delay(DelayPlugin),
@@ -92,116 +52,187 @@ impl Plugin {
             Self::Delay(plugin) => plugin.process(ctx, buf),
         }
     }
-
-    pub fn handle_event(&mut self, event: Event) -> Action {
-        match self {
-            Self::Lpf(plugin) => plugin.handle_event(event),
-            Self::Delay(plugin) => plugin.handle_event(event),
-        }
-    }
-
-    pub fn render<D: RaylibDraw>(&self, d: &mut D) {
-        match self {
-            Self::Lpf(plugin) => plugin.render(d),
-            Self::Delay(plugin) => plugin.render(d),
-        }
-    }
 }
-
-pub struct PluginUi;
 
 pub struct LpfPlugin {
     dsp: Lpf,
-    knobs: [Knob; 3],
 }
 
 impl LpfPlugin {
     fn new() -> Self {
-        Self {
-            dsp: Lpf::new(),
-            knobs: [
-                Knob::new(KnobParam::First, 32.0, 32.0, "drive"),
-                Knob::new(KnobParam::Second, 96.0, 32.0, "resonance"),
-                Knob::new(KnobParam::Third, 32.0, 96.0, "cutoff"),
-            ],
-        }
+        Self { dsp: Lpf::new() }
     }
 
     fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
         self.dsp.render(ctx, buf);
     }
-
-    fn handle_event(&mut self, event: Event) -> Action {
-        match event.key {
-            Key::Backspace => return Action::GoBack,
-            Key::One => nudge(&mut self.dsp.drive, -0.1),
-            Key::Two => nudge(&mut self.dsp.drive, 0.1),
-            Key::Three => nudge(&mut self.dsp.resonance, -0.1),
-            Key::Four => nudge(&mut self.dsp.resonance, 0.1),
-            Key::Five => nudge(&mut self.dsp.cutoff, -0.1),
-            Key::Six => nudge(&mut self.dsp.cutoff, 0.1),
-            _ => {}
-        }
-        Action::None
-    }
-
-    fn render<D: RaylibDraw>(&self, d: &mut D) {
-        for knob in &self.knobs {
-            let param = match knob.param {
-                KnobParam::First => &self.dsp.drive,
-                KnobParam::Second => &self.dsp.resonance,
-                KnobParam::Third => &self.dsp.cutoff,
-            };
-            knob.render(d, param);
-        }
-        draw_text_centered(d, "LPF", 64, 64, 10, Color::GREEN);
-    }
 }
 
 pub struct DelayPlugin {
     dsp: Delay,
-    knobs: [Knob; 3],
 }
 
 impl DelayPlugin {
     fn new() -> Self {
         Self {
             dsp: Delay::new(48_000),
-            knobs: [
-                Knob::new(KnobParam::First, 32.0, 32.0, "delay_time"),
-                Knob::new(KnobParam::Second, 96.0, 32.0, "feedback"),
-                Knob::new(KnobParam::Third, 32.0, 96.0, "mix"),
-            ],
         }
     }
 
     fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
         self.dsp.render(ctx, buf);
     }
+}
 
-    fn handle_event(&mut self, event: Event) -> Action {
+pub struct Knob {
+    pos: Vector2,
+    radius: f32,
+    color: Color,
+    name: &'static str,
+}
+
+impl Knob {
+    fn new(x: f32, y: f32, name: &'static str) -> Self {
+        Self {
+            pos: Vector2::new(x, y),
+            radius: 10.0,
+            color: Color::WHITE,
+            name,
+        }
+    }
+
+    fn render<D: RaylibDraw>(&self, d: &mut D, param: &Param) {
+        let angle = param.get_norm() * 360.0;
+        d.draw_circle_sector(self.pos, self.radius, 0.0, angle, 360, self.color);
+        draw_text_centered(
+            d,
+            self.name,
+            self.pos.x as i32,
+            (self.pos.y + 20.0) as i32,
+            10,
+            self.color,
+        );
+    }
+}
+
+pub enum PluginUi {
+    Lpf(LpfPluginUi),
+    Delay(DelayPluginUi),
+}
+
+impl PluginUi {
+    pub fn new(tag: Tag) -> Self {
+        match tag {
+            Tag::Lpf => Self::Lpf(LpfPluginUi::new()),
+            Tag::Delay => Self::Delay(DelayPluginUi::new()),
+        }
+    }
+
+    pub fn handle_event(&mut self, plugin: &mut Plugin, event: Event) -> Action {
+        match self {
+            Self::Lpf(ui) => {
+                let Plugin::Lpf(plugin) = plugin else {
+                    return Action::None;
+                };
+                ui.handle_event(plugin, event)
+            }
+            Self::Delay(ui) => {
+                let Plugin::Delay(plugin) = plugin else {
+                    return Action::None;
+                };
+                ui.handle_event(plugin, event)
+            }
+        }
+    }
+
+    pub fn render<D: RaylibDraw>(&self, plugin: &Plugin, d: &mut D) {
+        match self {
+            Self::Lpf(ui) => {
+                let Plugin::Lpf(plugin) = plugin else {
+                    return;
+                };
+                ui.render(plugin, d)
+            }
+            Self::Delay(ui) => {
+                let Plugin::Delay(plugin) = plugin else {
+                    return;
+                };
+                ui.render(plugin, d)
+            }
+        }
+    }
+}
+
+pub struct LpfPluginUi {
+    drive: Knob,
+    resonance: Knob,
+    cutoff: Knob,
+}
+
+impl LpfPluginUi {
+    fn new() -> Self {
+        Self {
+            drive: Knob::new(32.0, 32.0, "drive"),
+            resonance: Knob::new(96.0, 32.0, "resonance"),
+            cutoff: Knob::new(32.0, 96.0, "cutoff"),
+        }
+    }
+
+    fn handle_event(&mut self, plugin: &mut LpfPlugin, event: Event) -> Action {
         match event.key {
             Key::Backspace => return Action::GoBack,
-            Key::One => nudge(&mut self.dsp.delay_time, -0.1),
-            Key::Two => nudge(&mut self.dsp.delay_time, 0.1),
-            Key::Three => nudge(&mut self.dsp.feedback, -0.1),
-            Key::Four => nudge(&mut self.dsp.feedback, 0.1),
-            Key::Five => nudge(&mut self.dsp.mix, -0.1),
-            Key::Six => nudge(&mut self.dsp.mix, 0.1),
+            Key::One => nudge(&mut plugin.dsp.drive, -0.1),
+            Key::Two => nudge(&mut plugin.dsp.drive, 0.1),
+            Key::Three => nudge(&mut plugin.dsp.resonance, -0.1),
+            Key::Four => nudge(&mut plugin.dsp.resonance, 0.1),
+            Key::Five => nudge(&mut plugin.dsp.cutoff, -0.1),
+            Key::Six => nudge(&mut plugin.dsp.cutoff, 0.1),
             _ => {}
         }
         Action::None
     }
 
-    fn render<D: RaylibDraw>(&self, d: &mut D) {
-        for knob in &self.knobs {
-            let param = match knob.param {
-                KnobParam::First => &self.dsp.delay_time,
-                KnobParam::Second => &self.dsp.feedback,
-                KnobParam::Third => &self.dsp.mix,
-            };
-            knob.render(d, param);
+    fn render<D: RaylibDraw>(&self, plugin: &LpfPlugin, d: &mut D) {
+        self.drive.render(d, &plugin.dsp.drive);
+        self.resonance.render(d, &plugin.dsp.resonance);
+        self.cutoff.render(d, &plugin.dsp.cutoff);
+        draw_text_centered(d, "LPF", 64, 64, 10, Color::GREEN);
+    }
+}
+
+pub struct DelayPluginUi {
+    delay_time: Knob,
+    feedback: Knob,
+    mix: Knob,
+}
+
+impl DelayPluginUi {
+    fn new() -> Self {
+        Self {
+            delay_time: Knob::new(32.0, 32.0, "delay_time"),
+            feedback: Knob::new(96.0, 32.0, "feedback"),
+            mix: Knob::new(32.0, 96.0, "mix"),
         }
+    }
+
+    fn handle_event(&mut self, plugin: &mut DelayPlugin, event: Event) -> Action {
+        match event.key {
+            Key::Backspace => return Action::GoBack,
+            Key::One => nudge(&mut plugin.dsp.delay_time, -0.1),
+            Key::Two => nudge(&mut plugin.dsp.delay_time, 0.1),
+            Key::Three => nudge(&mut plugin.dsp.feedback, -0.1),
+            Key::Four => nudge(&mut plugin.dsp.feedback, 0.1),
+            Key::Five => nudge(&mut plugin.dsp.mix, -0.1),
+            Key::Six => nudge(&mut plugin.dsp.mix, 0.1),
+            _ => {}
+        }
+        Action::None
+    }
+
+    fn render<D: RaylibDraw>(&self, plugin: &DelayPlugin, d: &mut D) {
+        self.delay_time.render(d, &plugin.dsp.delay_time);
+        self.feedback.render(d, &plugin.dsp.feedback);
+        self.mix.render(d, &plugin.dsp.mix);
         draw_text_centered(d, "DELAY", 64, 64, 10, Color::PURPLE);
     }
 }
