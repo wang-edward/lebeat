@@ -1,6 +1,6 @@
 use raylib::prelude::*;
 
-use crate::audio::{Context, Delay as DspDelay, Lpf as DspLpf, Param, Sample};
+use crate::audio::{Context, Delay, Lpf, Param, Sample};
 use crate::input::{Event, Key};
 use crate::interface::draw_text_centered;
 
@@ -67,15 +67,15 @@ impl Knob {
 }
 
 pub enum Plugin {
-    Lpf(Lpf),
-    Delay(Delay),
+    Lpf(LpfPlugin),
+    Delay(DelayPlugin),
 }
 
 impl Plugin {
     pub fn new(tag: Tag) -> Self {
         match tag {
-            Tag::Lpf => Self::Lpf(Lpf::new()),
-            Tag::Delay => Self::Delay(Delay::new()),
+            Tag::Lpf => Self::Lpf(LpfPlugin::new()),
+            Tag::Delay => Self::Delay(DelayPlugin::new()),
         }
     }
 
@@ -108,15 +108,15 @@ impl Plugin {
     }
 }
 
-pub struct Lpf {
-    dsp: DspLpf,
+pub struct LpfPlugin {
+    dsp: Lpf,
     knobs: [Knob; 3],
 }
 
-impl Lpf {
+impl LpfPlugin {
     fn new() -> Self {
         Self {
-            dsp: DspLpf::new(),
+            dsp: Lpf::new(),
             knobs: [
                 Knob::new(KnobParam::First, 32.0, 32.0, "drive"),
                 Knob::new(KnobParam::Second, 96.0, 32.0, "resonance"),
@@ -156,15 +156,15 @@ impl Lpf {
     }
 }
 
-pub struct Delay {
-    dsp: DspDelay,
+pub struct DelayPlugin {
+    dsp: Delay,
     knobs: [Knob; 3],
 }
 
-impl Delay {
+impl DelayPlugin {
     fn new() -> Self {
         Self {
-            dsp: DspDelay::new(48_000),
+            dsp: Delay::new(48_000),
             knobs: [
                 Knob::new(KnobParam::First, 32.0, 32.0, "delay_time"),
                 Knob::new(KnobParam::Second, 96.0, 32.0, "feedback"),
