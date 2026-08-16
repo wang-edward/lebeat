@@ -18,81 +18,9 @@ pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, Tag as PluginTag};
 pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;
 
-// ------------------------------------------------------------------ Track
-
-pub struct Track {
-    pub synth: Uni,
-    pub notes: Vec<Note>,
-    pub plugins: Vec<Plugin>,
-}
-
-impl Track {
-    pub fn new(notes: &[Note]) -> Self {
-        let mut plugins = Vec::new();
-        plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
-        Self {
-            synth: Uni::new(),
-            notes: notes.to_vec(),
-            plugins,
-        }
-    }
-
-    /// synth (source) then each plugin (in place).
-    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
-        self.synth.render(ctx, out);
-        for p in &mut self.plugins {
-            p.process(ctx, out);
-        }
-    }
-
-    pub fn add_plugin(&mut self, p: Plugin) {
-        if self.plugins.len() < MAX_PLUGINS {
-            self.plugins.push(p);
-        }
-    }
-
-    pub fn remove_plugin(&mut self, idx: usize) {
-        if idx < self.plugins.len() {
-            self.plugins.remove(idx);
-        }
-    }
-}
-
-// ------------------------------------------------------------------ Timeline
-
-pub struct Timeline {
-    tracks: Vec<Track>,
-    pub active_track: usize,
-    pub playhead: u64,
-}
-
-impl Timeline {
-    fn new() -> Self {
-        let mut tracks = Vec::new();
-        tracks.reserve_exact(MAX_TRACKS);
-        Self {
-            tracks,
-            active_track: 0,
-            playhead: 0,
-        }
-    }
-
-    pub fn track_count(&self) -> usize {
-        self.tracks.len()
-    }
-
-    pub fn tracks(&self) -> &[Track] {
-        &self.tracks
-    }
-
-    pub fn track(&self, i: usize) -> &Track {
-        &self.tracks[i]
-    }
-}
-
-// ------------------------------------------------------------------ Engine
-
 pub struct Engine {
+    // TODO have input_track: usize here
+    // and put active_track in ui.rs
     ctx: Context,
     pub timeline: Timeline,
     pub playing: bool,
@@ -100,6 +28,18 @@ pub struct Engine {
 
     held_notes: [Option<Frame>; 128],
     record_buffer: Vec<Note>,
+}
+
+pub struct Timeline {
+    tracks: Vec<Track>,
+    pub active_track: usize,
+    pub playhead: u64,
+}
+
+pub struct Track {
+    pub synth: Uni,
+    pub notes: Vec<Note>,
+    pub plugins: Vec<Plugin>,
 }
 
 impl Engine {
@@ -164,8 +104,6 @@ impl Engine {
             self.timeline.tracks[track_idx].add_plugin(plugin);
         }
     }
-
-    // --- live keyboard notes (UI calls these under the lock) ---
 
     pub fn note_on(&mut self, note: u8) {
         let at = self.timeline.active_track;
@@ -284,6 +222,62 @@ impl Engine {
                     }
                 }
             }
+        }
+    }
+}
+
+impl Timeline {
+    fn new() -> Self {
+        let mut tracks = Vec::new();
+        tracks.reserve_exact(MAX_TRACKS);
+        Self {
+            tracks,
+            active_track: 0,
+            playhead: 0,
+        }
+    }
+
+    pub fn track_count(&self) -> usize {
+        self.tracks.len()
+    }
+
+    pub fn tracks(&self) -> &[Track] {
+        &self.tracks
+    }
+
+    pub fn track(&self, i: usize) -> &Track {
+        &self.tracks[i]
+    }
+}
+
+impl Track {
+    pub fn new(notes: &[Note]) -> Self {
+        let mut plugins = Vec::new();
+        plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
+        Self {
+            synth: Uni::new(),
+            notes: notes.to_vec(),
+            plugins,
+        }
+    }
+
+    /// synth (source) then each plugin (in place).
+    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
+        self.synth.render(ctx, out);
+        for p in &mut self.plugins {
+            p.process(ctx, out);
+        }
+    }
+
+    pub fn add_plugin(&mut self, p: Plugin) {
+        if self.plugins.len() < MAX_PLUGINS {
+            self.plugins.push(p);
+        }
+    }
+
+    pub fn remove_plugin(&mut self, idx: usize) {
+        if idx < self.plugins.len() {
+            self.plugins.remove(idx);
         }
     }
 }
