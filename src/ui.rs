@@ -106,7 +106,7 @@ struct TimelineUi {
     bar_width: f32,
     cursor: BeatWindow,
     step_size: f32,
-    track: TrackUi,
+    tracks: Vec<TrackUi>,
 }
 
 struct TrackUi {
@@ -210,7 +210,7 @@ impl TimelineUi {
                 len: 4.0,
             },
             step_size: 4.0,
-            track: TrackUi::new(),
+            tracks: Vec::new(),
         }
     }
 
