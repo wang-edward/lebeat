@@ -1,4 +1,4 @@
-//! The audio engine: a raylib-free, `Send` graph that owns everything the audio thread
+//! The audio engine: a `Send` graph that owns everything the audio thread
 //! touches — timeline, tracks, synths, DSP plugins, and playback/record state.
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
@@ -9,76 +9,14 @@
 //! indirection is unnecessary — the UI mutates the engine directly while holding the lock.
 //! (The tested `queue::SpscQueue` is still available if you want the lock-free split back.)
 
-use crate::audio::{Context, Delay, Lpf, Sample};
+use crate::audio::{Context, Sample};
 use crate::midi::{self, Frame, Note, NoteMsg};
 use crate::synth::Uni;
 
+pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, Tag as PluginTag};
+
 pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;
-
-// ------------------------------------------------------------------ Plugin (DSP only)
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum PluginTag {
-    Lpf,
-    Delay,
-}
-
-pub const PLUGIN_LIST: [PluginTag; 2] = [PluginTag::Lpf, PluginTag::Delay];
-
-impl PluginTag {
-    pub fn name(self) -> &'static str {
-        match self {
-            PluginTag::Lpf => "lpf",
-            PluginTag::Delay => "delay",
-        }
-    }
-}
-
-pub enum Plugin {
-    Lpf(Lpf),
-    Delay(Delay),
-}
-
-impl Plugin {
-    pub fn new(tag: PluginTag) -> Self {
-        match tag {
-            PluginTag::Lpf => Plugin::Lpf(Lpf::new()),
-            PluginTag::Delay => Plugin::Delay(Delay::new(48_000)),
-        }
-    }
-
-    pub fn tag(&self) -> PluginTag {
-        match self {
-            Plugin::Lpf(_) => PluginTag::Lpf,
-            Plugin::Delay(_) => PluginTag::Delay,
-        }
-    }
-
-    /// In-place transform of the track buffer.
-    pub fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        match self {
-            Plugin::Lpf(p) => p.render(ctx, buf),
-            Plugin::Delay(p) => p.render(ctx, buf),
-        }
-    }
-
-    /// The three (param, label) pairs the UI draws as knobs, in normalized [0,1].
-    pub fn knobs(&self) -> [(f32, &'static str); 3] {
-        match self {
-            Plugin::Lpf(p) => [
-                (p.drive.get_norm(), "drive"),
-                (p.resonance.get_norm(), "resonance"),
-                (p.cutoff.get_norm(), "cutoff"),
-            ],
-            Plugin::Delay(p) => [
-                (p.delay_time.get_norm(), "delay_time"),
-                (p.feedback.get_norm(), "feedback"),
-                (p.mix.get_norm(), "mix"),
-            ],
-        }
-    }
-}
 
 // ------------------------------------------------------------------ Track
 

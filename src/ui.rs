@@ -17,6 +17,7 @@ use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginTag};
 use crate::input::{Event, EventType, Key};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
+use crate::plugin::Action;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -371,39 +372,11 @@ impl TrackUi {
                 }
             }
             TrackScreen::Plugin => {
-                if ev.key == Key::Backspace {
-                    self.screen = TrackScreen::Overview;
-                    return false;
-                }
-
                 let Some(plugin) = eng.active_mut().plugins.get_mut(self.active_plugin) else {
                     return false;
                 };
-                macro_rules! nudge {
-                    ($param:expr, $delta:expr) => {{
-                        let norm = $param.get_norm();
-                        $param.set_norm(norm + $delta);
-                    }};
-                }
-                match plugin {
-                    Plugin::Lpf(p) => match ev.key {
-                        Key::One => nudge!(p.drive, -0.1),
-                        Key::Two => nudge!(p.drive, 0.1),
-                        Key::Three => nudge!(p.resonance, -0.1),
-                        Key::Four => nudge!(p.resonance, 0.1),
-                        Key::Five => nudge!(p.cutoff, -0.1),
-                        Key::Six => nudge!(p.cutoff, 0.1),
-                        _ => {}
-                    },
-                    Plugin::Delay(p) => match ev.key {
-                        Key::One => nudge!(p.delay_time, -0.1),
-                        Key::Two => nudge!(p.delay_time, 0.1),
-                        Key::Three => nudge!(p.feedback, -0.1),
-                        Key::Four => nudge!(p.feedback, 0.1),
-                        Key::Five => nudge!(p.mix, -0.1),
-                        Key::Six => nudge!(p.mix, 0.1),
-                        _ => {}
-                    },
+                if let Action::GoBack = plugin.handle_event(ev) {
+                    self.screen = TrackScreen::Overview;
                 }
             }
             TrackScreen::PluginSelector => match ev.key {
@@ -468,25 +441,7 @@ impl TrackUi {
                 let Some(plugin) = track.plugins.get(self.active_plugin) else {
                     return;
                 };
-                let knobs = plugin.knobs();
-                let positions = [(32.0f32, 32.0f32), (96.0, 32.0), (32.0, 96.0)];
-                for ((norm, name), (px, py)) in knobs.iter().zip(positions.iter()) {
-                    let angle = norm * 360.0;
-                    d.draw_circle_sector(
-                        Vector2::new(*px, *py),
-                        10.0,
-                        0.0,
-                        angle,
-                        360,
-                        Color::WHITE,
-                    );
-                    draw_text_centered(d, name, *px as i32, (*py + 20.0) as i32, 10, Color::WHITE);
-                }
-                let (label, color) = match plugin.tag() {
-                    PluginTag::Lpf => ("LPF", Color::GREEN),
-                    PluginTag::Delay => ("DELAY", Color::PURPLE),
-                };
-                draw_text_centered(d, label, 64, 64, 10, color);
+                plugin.render(d);
             }
             TrackScreen::PluginSelector => {
                 for (i, tag) in PLUGIN_LIST.iter().enumerate() {
