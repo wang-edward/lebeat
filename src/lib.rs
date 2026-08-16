@@ -10,6 +10,7 @@ pub mod audio_out;
 pub mod engine;
 pub mod input;
 pub mod midi;
+pub mod plugin;
 pub mod synth;
 
 pub mod interface;

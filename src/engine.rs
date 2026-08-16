@@ -1,4 +1,4 @@
-//! The audio engine: a raylib-free, `Send` graph that owns everything the audio thread
+//! The audio engine: a `Send` graph that owns everything the audio thread
 //! touches — timeline, tracks, synths, DSP plugins, and playback/record state.
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
@@ -9,150 +9,14 @@
 //! indirection is unnecessary — the UI mutates the engine directly while holding the lock.
 //! (The tested `queue::SpscQueue` is still available if you want the lock-free split back.)
 
-use crate::audio::{Context, Delay, Lpf, Sample};
+use crate::audio::{Context, Sample};
 use crate::midi::{self, Frame, Note, NoteMsg};
 use crate::synth::Uni;
 
+pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
+
 pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;
-
-// ------------------------------------------------------------------ Plugin (DSP only)
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum PluginTag {
-    Lpf,
-    Delay,
-}
-
-pub const PLUGIN_LIST: [PluginTag; 2] = [PluginTag::Lpf, PluginTag::Delay];
-
-impl PluginTag {
-    pub fn name(self) -> &'static str {
-        match self {
-            PluginTag::Lpf => "lpf",
-            PluginTag::Delay => "delay",
-        }
-    }
-}
-
-pub enum Plugin {
-    Lpf(Lpf),
-    Delay(Delay),
-}
-
-impl Plugin {
-    pub fn new(tag: PluginTag) -> Self {
-        match tag {
-            PluginTag::Lpf => Plugin::Lpf(Lpf::new()),
-            PluginTag::Delay => Plugin::Delay(Delay::new(48_000)),
-        }
-    }
-
-    pub fn tag(&self) -> PluginTag {
-        match self {
-            Plugin::Lpf(_) => PluginTag::Lpf,
-            Plugin::Delay(_) => PluginTag::Delay,
-        }
-    }
-
-    /// In-place transform of the track buffer.
-    pub fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        match self {
-            Plugin::Lpf(p) => p.render(ctx, buf),
-            Plugin::Delay(p) => p.render(ctx, buf),
-        }
-    }
-
-    /// The three (param, label) pairs the UI draws as knobs, in normalized [0,1].
-    pub fn knobs(&self) -> [(f32, &'static str); 3] {
-        match self {
-            Plugin::Lpf(p) => [
-                (p.drive.get_norm(), "drive"),
-                (p.resonance.get_norm(), "resonance"),
-                (p.cutoff.get_norm(), "cutoff"),
-            ],
-            Plugin::Delay(p) => [
-                (p.delay_time.get_norm(), "delay_time"),
-                (p.feedback.get_norm(), "feedback"),
-                (p.mix.get_norm(), "mix"),
-            ],
-        }
-    }
-}
-
-// ------------------------------------------------------------------ Track
-
-pub struct Track {
-    pub synth: Uni,
-    pub notes: Vec<Note>,
-    pub plugins: Vec<Plugin>,
-}
-
-impl Track {
-    pub fn new(notes: &[Note]) -> Self {
-        let mut plugins = Vec::new();
-        plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
-        Self {
-            synth: Uni::new(),
-            notes: notes.to_vec(),
-            plugins,
-        }
-    }
-
-    /// synth (source) then each plugin (in place).
-    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
-        self.synth.render(ctx, out);
-        for p in &mut self.plugins {
-            p.process(ctx, out);
-        }
-    }
-
-    pub fn add_plugin(&mut self, p: Plugin) {
-        if self.plugins.len() < MAX_PLUGINS {
-            self.plugins.push(p);
-        }
-    }
-
-    pub fn remove_plugin(&mut self, idx: usize) {
-        if idx < self.plugins.len() {
-            self.plugins.remove(idx);
-        }
-    }
-}
-
-// ------------------------------------------------------------------ Timeline
-
-pub struct Timeline {
-    tracks: Vec<Track>,
-    pub active_track: usize,
-    pub playhead: u64,
-}
-
-impl Timeline {
-    fn new() -> Self {
-        let mut tracks = Vec::new();
-        tracks.reserve_exact(MAX_TRACKS);
-        Self {
-            tracks,
-            active_track: 0,
-            playhead: 0,
-        }
-    }
-
-    pub fn track_count(&self) -> usize {
-        self.tracks.len()
-    }
-
-    pub fn tracks(&self) -> &[Track] {
-        &self.tracks
-    }
-
-    pub fn track(&self, i: usize) -> &Track {
-        &self.tracks[i]
-    }
-}
-
-// ------------------------------------------------------------------ Engine
 
 pub struct Engine {
     ctx: Context,
@@ -162,6 +26,18 @@ pub struct Engine {
 
     held_notes: [Option<Frame>; 128],
     record_buffer: Vec<Note>,
+}
+
+pub struct Timeline {
+    tracks: Vec<Track>,
+    pub active_track: usize,
+    pub playhead: u64,
+}
+
+pub struct Track {
+    pub synth: Uni,
+    pub notes: Vec<Note>,
+    pub plugins: Vec<Plugin>,
 }
 
 impl Engine {
@@ -194,25 +70,24 @@ impl Engine {
     pub fn track_mut(&mut self, i: usize) -> &mut Track {
         &mut self.timeline.tracks[i]
     }
-    pub fn active(&self) -> &Track {
-        &self.timeline.tracks[self.timeline.active_track]
-    }
-    pub fn active_mut(&mut self) -> &mut Track {
-        &mut self.timeline.tracks[self.timeline.active_track]
-    }
-
-    pub fn add_track(&mut self, track: Track) {
+    pub fn add_track(&mut self, track: Track) -> bool {
         if self.timeline.tracks.len() < MAX_TRACKS {
             self.timeline.tracks.push(track);
+            true
+        } else {
+            false
         }
     }
 
-    pub fn remove_track(&mut self, idx: usize) {
+    pub fn remove_track(&mut self, idx: usize) -> bool {
         if idx < self.timeline.tracks.len() && self.timeline.tracks.len() > 1 {
             self.timeline.tracks.remove(idx);
             if self.timeline.active_track >= self.timeline.tracks.len() {
                 self.timeline.active_track = self.timeline.tracks.len() - 1;
             }
+            true
+        } else {
+            false
         }
     }
 
@@ -221,13 +96,19 @@ impl Engine {
         self.timeline.active_track = if n > 0 { idx.min(n - 1) } else { 0 };
     }
 
-    pub fn add_plugin(&mut self, track_idx: usize, plugin: Plugin) {
-        if track_idx < self.timeline.tracks.len() {
-            self.timeline.tracks[track_idx].add_plugin(plugin);
-        }
+    pub fn add_plugin(&mut self, track_idx: usize, plugin: Plugin) -> bool {
+        self.timeline
+            .tracks
+            .get_mut(track_idx)
+            .is_some_and(|track| track.add_plugin(plugin))
     }
 
-    // --- live keyboard notes (UI calls these under the lock) ---
+    pub fn remove_plugin(&mut self, track_idx: usize, plugin_idx: usize) -> bool {
+        self.timeline
+            .tracks
+            .get_mut(track_idx)
+            .is_some_and(|track| track.remove_plugin(plugin_idx))
+    }
 
     pub fn note_on(&mut self, note: u8) {
         let at = self.timeline.active_track;
@@ -346,6 +227,68 @@ impl Engine {
                     }
                 }
             }
+        }
+    }
+}
+
+impl Timeline {
+    fn new() -> Self {
+        let mut tracks = Vec::new();
+        tracks.reserve_exact(MAX_TRACKS);
+        Self {
+            tracks,
+            active_track: 0,
+            playhead: 0,
+        }
+    }
+
+    pub fn track_count(&self) -> usize {
+        self.tracks.len()
+    }
+
+    pub fn tracks(&self) -> &[Track] {
+        &self.tracks
+    }
+
+    pub fn track(&self, i: usize) -> &Track {
+        &self.tracks[i]
+    }
+}
+
+impl Track {
+    pub fn new(notes: &[Note]) -> Self {
+        let mut plugins = Vec::new();
+        plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
+        Self {
+            synth: Uni::new(),
+            notes: notes.to_vec(),
+            plugins,
+        }
+    }
+
+    /// synth (source) then each plugin (in place).
+    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
+        self.synth.render(ctx, out);
+        for p in &mut self.plugins {
+            p.process(ctx, out);
+        }
+    }
+
+    pub fn add_plugin(&mut self, p: Plugin) -> bool {
+        if self.plugins.len() < MAX_PLUGINS {
+            self.plugins.push(p);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_plugin(&mut self, idx: usize) -> bool {
+        if idx < self.plugins.len() {
+            self.plugins.remove(idx);
+            true
+        } else {
+            false
         }
     }
 }
