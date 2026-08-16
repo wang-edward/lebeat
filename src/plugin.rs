@@ -85,24 +85,15 @@ impl DelayPlugin {
 }
 
 pub struct Knob {
-    param: KnobParam,
     pos: Vector2,
     radius: f32,
     color: Color,
     name: &'static str,
 }
 
-#[derive(Clone, Copy)]
-enum KnobParam {
-    First,
-    Second,
-    Third,
-}
-
 impl Knob {
-    fn new(param: KnobParam, x: f32, y: f32, name: &'static str) -> Self {
+    fn new(x: f32, y: f32, name: &'static str) -> Self {
         Self {
-            param,
             pos: Vector2::new(x, y),
             radius: 10.0,
             color: Color::WHITE,
@@ -173,17 +164,17 @@ impl PluginUi {
 }
 
 pub struct LpfPluginUi {
-    knobs: [Knob; 3],
+    drive: Knob,
+    resonance: Knob,
+    cutoff: Knob,
 }
 
 impl LpfPluginUi {
     fn new() -> Self {
         Self {
-            knobs: [
-                Knob::new(KnobParam::First, 32.0, 32.0, "drive"),
-                Knob::new(KnobParam::Second, 96.0, 32.0, "resonance"),
-                Knob::new(KnobParam::Third, 32.0, 96.0, "cutoff"),
-            ],
+            drive: Knob::new(32.0, 32.0, "drive"),
+            resonance: Knob::new(96.0, 32.0, "resonance"),
+            cutoff: Knob::new(32.0, 96.0, "cutoff"),
         }
     }
 
@@ -202,30 +193,25 @@ impl LpfPluginUi {
     }
 
     fn render<D: RaylibDraw>(&self, plugin: &LpfPlugin, d: &mut D) {
-        for knob in &self.knobs {
-            let param = match knob.param {
-                KnobParam::First => &plugin.dsp.drive,
-                KnobParam::Second => &plugin.dsp.resonance,
-                KnobParam::Third => &plugin.dsp.cutoff,
-            };
-            knob.render(d, param);
-        }
+        self.drive.render(d, &plugin.dsp.drive);
+        self.resonance.render(d, &plugin.dsp.resonance);
+        self.cutoff.render(d, &plugin.dsp.cutoff);
         draw_text_centered(d, "LPF", 64, 64, 10, Color::GREEN);
     }
 }
 
 pub struct DelayPluginUi {
-    knobs: [Knob; 3],
+    delay_time: Knob,
+    feedback: Knob,
+    mix: Knob,
 }
 
 impl DelayPluginUi {
     fn new() -> Self {
         Self {
-            knobs: [
-                Knob::new(KnobParam::First, 32.0, 32.0, "delay_time"),
-                Knob::new(KnobParam::Second, 96.0, 32.0, "feedback"),
-                Knob::new(KnobParam::Third, 32.0, 96.0, "mix"),
-            ],
+            delay_time: Knob::new(32.0, 32.0, "delay_time"),
+            feedback: Knob::new(96.0, 32.0, "feedback"),
+            mix: Knob::new(32.0, 96.0, "mix"),
         }
     }
 
@@ -244,14 +230,9 @@ impl DelayPluginUi {
     }
 
     fn render<D: RaylibDraw>(&self, plugin: &DelayPlugin, d: &mut D) {
-        for knob in &self.knobs {
-            let param = match knob.param {
-                KnobParam::First => &plugin.dsp.delay_time,
-                KnobParam::Second => &plugin.dsp.feedback,
-                KnobParam::Third => &plugin.dsp.mix,
-            };
-            knob.render(d, param);
-        }
+        self.delay_time.render(d, &plugin.dsp.delay_time);
+        self.feedback.render(d, &plugin.dsp.feedback);
+        self.mix.render(d, &plugin.dsp.mix);
         draw_text_centered(d, "DELAY", 64, 64, 10, Color::PURPLE);
     }
 }
