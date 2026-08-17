@@ -3,8 +3,8 @@
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
 use crate::audio::{Context, Sample};
+use crate::instrument::Uni;
 use crate::midi::{Frame, Note};
-use crate::synth::Uni;
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
 

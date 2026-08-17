@@ -9,9 +9,9 @@ pub mod audio;
 pub mod audio_out;
 pub mod engine;
 pub mod input;
+pub mod instrument;
 pub mod midi;
 pub mod plugin;
-pub mod synth;
 
 pub mod interface;
 pub mod ui;
@@ -19,8 +19,8 @@ pub mod ui;
 #[cfg(test)]
 mod tests {
     use crate::audio::Context;
+    use crate::instrument::Uni;
     use crate::midi::{self, Note};
-    use crate::synth::Uni;
 
     const SR: f32 = 48_000.0;
     const BLOCK: usize = 256;
