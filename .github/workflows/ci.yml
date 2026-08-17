@@ -59,4 +59,4 @@ jobs:
             echo "| All code | $all_code |"
             echo "| Core | $core |"
             echo "| Test | $test |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
