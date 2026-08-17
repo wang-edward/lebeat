@@ -70,7 +70,7 @@ impl JunoUi {
 
     pub fn handle_event(&mut self, _juno: &mut Juno, event: Event) -> Action {
         match event.key {
-            Key::Backspace => return Action::GoBack,
+            Key::Backspace => Action::GoBack,
             _ => Action::None,
         }
     }
