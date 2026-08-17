@@ -49,6 +49,7 @@ jobs:
 
           all_code=$(count 'src' ':!src/lib.rs' ':!src/bin/**')
           core=$(count 'src' ':!src/lib.rs' ':!src/bin/**' ':!src/plugin.rs' ':!src/plugin/**' ':!src/instrument.rs' ':!src/instrument/**')
+          components=$(count 'src/plugin.rs' 'src/plugin' 'src/instrument.rs' 'src/instrument')
           test=$(count 'src/lib.rs' 'src/bin')
 
           {
@@ -57,6 +58,7 @@ jobs:
             echo '| Category | Lines |'
             echo '| --- | ---: |'
             echo "| All code | $all_code |"
+            echo "| Components | $components |"
             echo "| Core | $core |"
             echo "| Test | $test |"
           } | tee -a "$GITHUB_STEP_SUMMARY"
