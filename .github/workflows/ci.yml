@@ -34,3 +34,29 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl1-mesa-dev libwayland-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
       - run: ${{ matrix.check.command }}
+
+  line-count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report Rust line counts
+        shell: bash
+        run: |
+          count() {
+            git ls-files "$@" | xargs wc -l | awk 'END { print $1 }'
+          }
+
+          all_code=$(count 'src' ':!src/lib.rs' ':!src/bin/**')
+          core=$(count 'src' ':!src/lib.rs' ':!src/bin/**' ':!src/plugin.rs' ':!src/plugin/**' ':!src/instrument.rs' ':!src/instrument/**')
+          test=$(count 'src/lib.rs' 'src/bin')
+
+          {
+            echo '## Line Counts'
+            echo
+            echo '| Category | Lines |'
+            echo '| --- | ---: |'
+            echo "| All code | $all_code |"
+            echo "| Core | $core |"
+            echo "| Test | $test |"
+          } >> "$GITHUB_STEP_SUMMARY"
