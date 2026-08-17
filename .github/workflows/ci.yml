@@ -35,7 +35,7 @@ jobs:
 
       - run: ${{ matrix.check.command }}
 
-  line-count:
+  line_count:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
