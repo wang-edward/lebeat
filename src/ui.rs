@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use raylib::prelude::*;
 
-use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, Plugin, PluginTag, PluginUi};
+use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, PluginKind, PluginUi, create};
 use crate::input::{Event, EventType, Key};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
@@ -85,8 +85,8 @@ impl Icons {
         }
         Self { map }
     }
-    fn get(&self, tag: PluginTag) -> Option<&Texture2D> {
-        self.map.get(tag.name())
+    fn get(&self, kind: PluginKind) -> Option<&Texture2D> {
+        self.map.get(kind.name())
     }
 }
 
@@ -407,9 +407,9 @@ impl TrackUi {
                     self.selector_index += 1;
                 }
                 Key::Enter => {
-                    let tag = PLUGIN_LIST[self.selector_index];
-                    if eng.add_plugin(track_idx, Plugin::new(tag)) {
-                        self.plugins.push(PluginUi::new(tag));
+                    let (plugin, ui) = create(PLUGIN_LIST[self.selector_index]);
+                    if eng.add_plugin(track_idx, plugin) {
+                        self.plugins.push(ui);
                         self.screen = TrackScreen::Overview;
                     }
                 }
@@ -437,11 +437,11 @@ impl TrackUi {
                 for i in 0..track.plugins.len() {
                     let x = (i as i32 % 4) * 32 + 16;
                     let y = (i as i32 / 4) * 32 + 64 + 16;
-                    let tag = track.plugins[i].tag();
-                    if let Some(tex) = icons.get(tag) {
+                    let kind = track.plugins[i].kind();
+                    if let Some(tex) = icons.get(kind) {
                         d.draw_texture(tex, x - 8, y - 8, Color::WHITE);
                     }
-                    let name = tag.name();
+                    let name = kind.name();
                     let tw = crate::interface::measure_text(name, 10);
                     d.draw_text(name, x - tw / 2, y + 6, 10, Color::WHITE);
                     if i == self.active_plugin {

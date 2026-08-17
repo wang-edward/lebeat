@@ -5,18 +5,18 @@ use crate::input::{Event, Key};
 use crate::interface::draw_text_centered;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tag {
+pub enum PluginKind {
     Lpf,
     Delay,
 }
 
-pub const LIST: [Tag; 2] = [Tag::Lpf, Tag::Delay];
+pub const LIST: [PluginKind; 2] = [PluginKind::Lpf, PluginKind::Delay];
 
-impl Tag {
+impl PluginKind {
     pub fn name(self) -> &'static str {
         match self {
-            Tag::Lpf => "lpf",
-            Tag::Delay => "delay",
+            Self::Lpf => "lpf",
+            Self::Delay => "delay",
         }
     }
 }
@@ -32,17 +32,10 @@ pub enum Plugin {
 }
 
 impl Plugin {
-    pub fn new(tag: Tag) -> Self {
-        match tag {
-            Tag::Lpf => Self::Lpf(LpfPlugin::new()),
-            Tag::Delay => Self::Delay(DelayPlugin::new()),
-        }
-    }
-
-    pub fn tag(&self) -> Tag {
+    pub fn kind(&self) -> PluginKind {
         match self {
-            Self::Lpf(_) => Tag::Lpf,
-            Self::Delay(_) => Tag::Delay,
+            Self::Lpf(_) => PluginKind::Lpf,
+            Self::Delay(_) => PluginKind::Delay,
         }
     }
 
@@ -125,13 +118,6 @@ pub enum PluginUi {
 }
 
 impl PluginUi {
-    pub fn new(tag: Tag) -> Self {
-        match tag {
-            Tag::Lpf => Self::Lpf(LpfPluginUi::new()),
-            Tag::Delay => Self::Delay(DelayPluginUi::new()),
-        }
-    }
-
     pub fn handle_event(&mut self, plugin: &mut Plugin, event: Event) -> Action {
         match self {
             Self::Lpf(ui) => {
@@ -164,6 +150,19 @@ impl PluginUi {
                 ui.render(plugin, d)
             }
         }
+    }
+}
+
+pub fn create(kind: PluginKind) -> (Plugin, PluginUi) {
+    match kind {
+        PluginKind::Lpf => (
+            Plugin::Lpf(LpfPlugin::new()),
+            PluginUi::Lpf(LpfPluginUi::new()),
+        ),
+        PluginKind::Delay => (
+            Plugin::Delay(DelayPlugin::new()),
+            PluginUi::Delay(DelayPluginUi::new()),
+        ),
     }
 }
 

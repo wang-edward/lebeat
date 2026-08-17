@@ -7,7 +7,7 @@ use crate::instrument::Instrument;
 use crate::instrument::juno::Juno;
 use crate::midi::{Frame, Note};
 
-pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
+pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginKind, PluginUi, create};
 
 pub const MAX_TRACKS: usize = 8;
 pub const MAX_PLUGINS: usize = 8;

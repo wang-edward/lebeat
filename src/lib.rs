@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn engine_two_track_demo_renders() {
-        use crate::engine::{Engine, Plugin, PluginTag, Track};
+        use crate::engine::{Engine, PluginKind, Track, create};
         use crate::midi::{Note, beats_to_frames};
         let sr = SR;
         let mk = |b0: f32, b1: f32, n: u8| Note {
@@ -93,8 +93,10 @@ mod tests {
         let mut eng = Engine::new(sr, 120.0);
         eng.add_track(Track::new(&lead));
         eng.add_track(Track::new(&bass));
-        eng.add_plugin(0, Plugin::new(PluginTag::Lpf));
-        eng.add_plugin(1, Plugin::new(PluginTag::Delay));
+        let (lpf, _) = create(PluginKind::Lpf);
+        let (delay, _) = create(PluginKind::Delay);
+        eng.add_plugin(0, lpf);
+        eng.add_plugin(1, delay);
         assert_eq!(eng.track_count(), 2);
 
         eng.toggle_play();
