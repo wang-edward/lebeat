@@ -47,7 +47,27 @@ impl Sampler {
             v.note = None;
         }
     }
-    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {}
+    fn next(&mut self, ctx: &Context) -> Sample {
+        let mut ans: Sample = 0.0;
+        for v in &mut self.voices {
+            let Some(note) = v.note else { continue };
+            let pitch_ratio = ((note as f32 - self.root_note as f32) / 12.0).exp2();
+            let sample_rate_ratio = self.sample_rate / ctx.sample_rate;
+            let increment = pitch_ratio * sample_rate_ratio;
+
+            let index = v.position.floor() as usize;
+            let fraction = v.position.fract();
+
+            ans += self.sample[index] * (1.0 - fraction) + self.sample[index + 1] * fraction;
+            v.position += increment;
+        }
+        ans
+    }
+    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
+        for o in out.iter_mut() {
+            *o = self.next(ctx);
+        }
+    }
 }
 
 impl SamplerVoice {
