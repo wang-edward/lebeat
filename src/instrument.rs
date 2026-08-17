@@ -55,27 +55,52 @@ impl InstrumentUi {
     pub fn new(instrument: &Instrument) -> Self {
         match instrument {
             Instrument::Juno(_) => Self::Juno(JunoUi::new()),
-            Instrument::Sampler(_) => Self::Juno(JunoUi::new()),
+            Instrument::Sampler(_) => Self::Sampler(SamplerUi::new()),
         }
     }
 
     pub fn matches(&self, instrument: &Instrument) -> bool {
-        matches!((self, instrument), (Self::Juno(_), Instrument::Juno(_)))
+        matches!(
+            (self, instrument),
+            (Self::Juno(_), Instrument::Juno(_)) | (Self::Sampler(_), Instrument::Sampler(_))
+        )
     }
 
     pub fn handle_event(&mut self, instrument: &mut Instrument, event: Event) -> Action {
-        match (self, instrument) {
-            (Self::Juno(ui), Instrument::Juno(instrument)) => ui.handle_event(instrument, event),
-            (Self::Sampler(ui), Instrument::Sampler(instrument)) => {
+        match self {
+            Self::Juno(ui) => {
+                let Instrument::Juno(instrument) = instrument else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
+                    return Action::None;
+                };
+                ui.handle_event(instrument, event)
+            }
+            Self::Sampler(ui) => {
+                let Instrument::Sampler(instrument) = instrument else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
+                    return Action::None;
+                };
                 ui.handle_event(instrument, event)
             }
         }
     }
 
     pub fn render<D: RaylibDraw>(&self, instrument: &Instrument, d: &mut D) {
-        match (self, instrument) {
-            (Self::Juno(ui), Instrument::Juno(instrument)) => ui.render(instrument, d),
-            (Self::Sampler(ui), Instrument::Sampler(instrument)) => ui.render(instrument, d),
+        match self {
+            Self::Juno(ui) => {
+                let Instrument::Juno(instrument) = instrument else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
+                    return;
+                };
+                ui.render(instrument, d);
+            }
+            Self::Sampler(ui) => {
+                let Instrument::Sampler(instrument) = instrument else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
+                    return;
+                };
+                ui.render(instrument, d);
+            }
         }
     }
 }

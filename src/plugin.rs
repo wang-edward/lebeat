@@ -90,12 +90,14 @@ impl PluginUi {
         match self {
             Self::Lpf(ui) => {
                 let Plugin::Lpf(plugin) = plugin else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
                     return Action::None;
                 };
                 ui.handle_event(plugin, event)
             }
             Self::Delay(ui) => {
                 let Plugin::Delay(plugin) = plugin else {
+                    debug_assert!(false, "Ui x Instrument mismatch");
                     return Action::None;
                 };
                 ui.handle_event(plugin, event)
