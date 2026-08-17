@@ -36,7 +36,7 @@ mod tests {
 
         let mut peak = 0.0f32;
         for _ in 0..50 {
-            synth.render(&ctx, &mut out);
+            synth.process(&ctx, &mut out);
             for &s in out.iter() {
                 assert!(s.is_finite(), "non-finite sample");
                 peak = peak.max(s.abs());
@@ -48,7 +48,7 @@ mod tests {
         synth.note_off(72);
         // run long enough for the 0.6s release to finish
         for _ in 0..(SR as usize / BLOCK + 200) {
-            synth.render(&ctx, &mut out);
+            synth.process(&ctx, &mut out);
         }
         assert!(synth.is_idle(), "voices never returned to idle");
     }

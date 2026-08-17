@@ -97,7 +97,7 @@ impl Uni {
     }
 
     /// Sum all voices into `out`.
-    pub fn render(&mut self, ctx: &Context, out: &mut [Sample]) {
+    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
         out.fill(0.0);
         let cutoff = self.cutoff;
         for v in &mut self.voices {
