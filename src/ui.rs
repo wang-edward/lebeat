@@ -434,9 +434,8 @@ impl TrackUi {
                 _ => {}
             },
             TrackScreen::Instrument => {
-                let at = eng.timeline.active_track;
-                let t = eng.track_mut(at);
-                if let Action::GoBack = self.instrument.handle_event(&mut t.instrument, ev) {
+                let instrument = &mut eng.track_mut(track_idx).instrument;
+                if let Action::GoBack = self.instrument.handle_event(instrument, ev) {
                     self.screen = TrackScreen::Overview;
                 }
             }
@@ -509,7 +508,8 @@ impl TrackUi {
                 }
             }
             TrackScreen::Instrument => {
-                d.draw_text("INSTRUMENT", 0, 0, 5, Color::WHITE);
+                let instrument = &eng.track(track_idx).instrument;
+                self.instrument.render(instrument, d);
             }
         }
     }

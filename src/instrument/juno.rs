@@ -71,12 +71,13 @@ impl JunoUi {
     pub fn handle_event(&mut self, _juno: &mut Juno, event: Event) -> Action {
         match event.key {
             Key::Backspace => return Action::GoBack,
-            _ => {}
+            _ => Action::None,
         }
-        Action::None
     }
 
-    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, _d: &mut D) {}
+    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, d: &mut D) {
+        d.draw_text("JUNO", 0, 0, 5, Color::WHITE);
+    }
 }
 
 impl Default for JunoUi {
