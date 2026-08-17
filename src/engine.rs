@@ -239,7 +239,7 @@ impl Track {
         let mut plugins = Vec::new();
         plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
         Self {
-            instrument: Instrument::Sampler(Sampler::new()),
+            instrument: Instrument::Sampler(Sampler::default()),
             notes: notes.to_vec(),
             plugins,
             buffer: Vec::new(),

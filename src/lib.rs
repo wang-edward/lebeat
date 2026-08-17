@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn sampler_produces_audio() {
         let ctx = Context::new(SR, 120.0);
-        let mut sampler = Sampler::new();
+        let mut sampler = Sampler::default();
         let mut out = vec![0.0; BLOCK];
 
         sampler.note_on(60);

@@ -28,7 +28,7 @@ pub fn create(kind: InstrumentKind) -> (Instrument, InstrumentUi) {
             InstrumentUi::Juno(JunoUi::new()),
         ),
         InstrumentKind::Sampler => (
-            Instrument::Sampler(Sampler::new()),
+            Instrument::Sampler(Sampler::default()),
             InstrumentUi::Sampler(SamplerUi::new()),
         ),
     }
