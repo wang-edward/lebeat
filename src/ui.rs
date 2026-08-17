@@ -15,6 +15,7 @@ use raylib::prelude::*;
 
 use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, PluginKind, PluginUi, create};
 use crate::input::{Event, EventType, Key};
+use crate::instrument::{Instrument, InstrumentUi};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
 use crate::plugin::Action;
@@ -110,6 +111,7 @@ struct TimelineUi {
 }
 
 struct TrackUi {
+    instrument: InstrumentUi,
     screen: TrackScreen,
     active_plugin: usize,
     selector_index: usize,
@@ -121,14 +123,20 @@ const ROW_HEIGHT: i32 = 28;
 
 impl App {
     pub fn new(engine: Arc<Mutex<Engine>>, icons: Icons) -> Self {
-        let track_count = engine.lock().unwrap().track_count();
+        let tracks = engine
+            .lock()
+            .unwrap()
+            .tracks()
+            .iter()
+            .map(|track| TrackUi::new(&track.instrument))
+            .collect();
         Self {
             engine,
             icons,
             mode: Mode::Normal,
             note_offset: 0,
             active_notes: HashMap::new(),
-            timeline: TimelineUi::new(track_count),
+            timeline: TimelineUi::new(tracks),
         }
     }
 
@@ -199,7 +207,7 @@ impl App {
 }
 
 impl TimelineUi {
-    fn new(track_count: usize) -> Self {
+    fn new(tracks: Vec<TrackUi>) -> Self {
         Self {
             screen: TimelineScreen::Overview,
             frame: BeatFrame {
@@ -212,7 +220,7 @@ impl TimelineUi {
                 len: 4.0,
             },
             step_size: 4.0,
-            tracks: (0..track_count).map(|_| TrackUi::new()).collect(),
+            tracks,
         }
     }
 
@@ -253,8 +261,10 @@ impl TimelineUi {
                 Key::Backspace => eng.reset(),
                 Key::R => eng.toggle_record(),
                 Key::Equal if eng.track_count() < crate::engine::MAX_TRACKS => {
-                    if eng.add_track(crate::engine::Track::new(&[])) {
-                        self.tracks.push(TrackUi::new());
+                    let track = crate::engine::Track::new(&[]);
+                    let track_ui = TrackUi::new(&track.instrument);
+                    if eng.add_track(track) {
+                        self.tracks.push(track_ui);
                     }
                 }
                 Key::Minus if eng.track_count() > 1 => {
@@ -360,8 +370,9 @@ impl TimelineUi {
 }
 
 impl TrackUi {
-    fn new() -> Self {
+    fn new(instrument: &Instrument) -> Self {
         Self {
+            instrument: InstrumentUi::new(instrument),
             screen: TrackScreen::Overview,
             active_plugin: 0,
             selector_index: 0,
@@ -370,6 +381,7 @@ impl TrackUi {
     }
 
     fn handle_event(&mut self, ev: Event, eng: &mut Engine, track_idx: usize) -> bool {
+        debug_assert!(self.instrument.matches(&eng.track(track_idx).instrument));
         debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
@@ -420,6 +432,7 @@ impl TrackUi {
     }
 
     fn render<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons, track_idx: usize) {
+        debug_assert!(self.instrument.matches(&eng.track(track_idx).instrument));
         debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
