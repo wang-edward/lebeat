@@ -4,7 +4,7 @@
 //!
 use crate::audio::{Context, Sample};
 use crate::instrument::Instrument;
-use crate::instrument::juno::Juno;
+use crate::instrument::sampler::Sampler;
 use crate::midi::{Frame, Note};
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginKind, PluginUi, create};
@@ -239,7 +239,7 @@ impl Track {
         let mut plugins = Vec::new();
         plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
         Self {
-            instrument: Instrument::Juno(Juno::new()),
+            instrument: Instrument::Sampler(Sampler::default()),
             notes: notes.to_vec(),
             plugins,
             buffer: Vec::new(),
