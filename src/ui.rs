@@ -18,26 +18,16 @@ use crate::input::{Event, EventType, Key};
 use crate::instrument::{Instrument, InstrumentUi};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
-use crate::plugin::Action;
+
+pub enum Action {
+    None,
+    GoBack,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Normal,
     Insert,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TimelineScreen {
-    Overview,
-    MidiEditor,
-    Track,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TrackScreen {
-    Overview,
-    Plugin,
-    PluginSelector,
 }
 
 #[derive(Clone, Copy)]
@@ -101,6 +91,13 @@ pub struct App {
     timeline: TimelineUi,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TimelineScreen {
+    Overview,
+    MidiEditor,
+    Track,
+}
+
 struct TimelineUi {
     screen: TimelineScreen,
     frame: BeatFrame,
@@ -108,6 +105,14 @@ struct TimelineUi {
     cursor: BeatWindow,
     step_size: f32,
     tracks: Vec<TrackUi>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TrackScreen {
+    Overview,
+    Plugin,
+    PluginSelector,
+    Instrument,
 }
 
 struct TrackUi {
@@ -389,11 +394,12 @@ impl TrackUi {
                 match ev.key {
                     Key::Backspace => return true,
                     Key::A => self.screen = TrackScreen::PluginSelector,
+                    Key::S => self.screen = TrackScreen::Instrument,
                     Key::Enter if plugin_count > 0 => self.screen = TrackScreen::Plugin,
+                    Key::H if self.active_plugin > 0 => self.active_plugin -= 1,
                     Key::L if plugin_count > 0 => {
                         self.active_plugin = (self.active_plugin + 1).min(plugin_count - 1);
                     }
-                    Key::H if self.active_plugin > 0 => self.active_plugin -= 1,
                     _ => {}
                 }
             }
@@ -427,6 +433,12 @@ impl TrackUi {
                 }
                 _ => {}
             },
+            TrackScreen::Instrument => {
+                let instrument = &mut eng.track_mut(track_idx).instrument;
+                if let Action::GoBack = self.instrument.handle_event(instrument, ev) {
+                    self.screen = TrackScreen::Overview;
+                }
+            }
         }
         false
     }
@@ -494,6 +506,10 @@ impl TrackUi {
                     d.draw_rectangle(0, y, 128, 16, Color::DARKGRAY);
                     d.draw_text(tag.name(), 0, y, 5, color);
                 }
+            }
+            TrackScreen::Instrument => {
+                let instrument = &eng.track(track_idx).instrument;
+                self.instrument.render(instrument, d);
             }
         }
     }

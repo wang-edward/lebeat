@@ -3,6 +3,7 @@ use raylib::prelude::*;
 use crate::audio::{Context, Param, Sample};
 use crate::input::Event;
 use crate::interface::draw_text_centered;
+use crate::ui::Action;
 
 mod delay_plugin;
 mod lpf_plugin;
@@ -25,11 +26,6 @@ impl PluginKind {
             Self::Delay => "delay",
         }
     }
-}
-
-pub enum Action {
-    None,
-    GoBack,
 }
 
 pub enum Plugin {

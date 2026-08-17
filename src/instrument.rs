@@ -6,6 +6,7 @@ use raylib::prelude::*;
 
 use crate::audio::{Context, Sample};
 use crate::input::Event;
+use crate::ui::Action;
 use juno::{Juno, JunoUi};
 
 pub enum Instrument {
@@ -53,7 +54,7 @@ impl InstrumentUi {
         matches!((self, instrument), (Self::Juno(_), Instrument::Juno(_)))
     }
 
-    pub fn handle_event(&mut self, instrument: &mut Instrument, event: Event) {
+    pub fn handle_event(&mut self, instrument: &mut Instrument, event: Event) -> Action {
         match (self, instrument) {
             (Self::Juno(ui), Instrument::Juno(instrument)) => ui.handle_event(instrument, event),
         }

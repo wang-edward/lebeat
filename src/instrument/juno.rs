@@ -3,7 +3,8 @@
 use raylib::prelude::*;
 
 use crate::audio::{Adsr, AdsrStage, Context, Lpf, Osc, OscKind, Sample};
-use crate::input::Event;
+use crate::input::{Event, Key};
+use crate::ui::Action;
 
 const SYNTH_TUNING: f32 = 440.0;
 const NUM_VOICES: usize = 16;
@@ -67,9 +68,16 @@ impl JunoUi {
         Self
     }
 
-    pub fn handle_event(&mut self, _juno: &mut Juno, _event: Event) {}
+    pub fn handle_event(&mut self, _juno: &mut Juno, event: Event) -> Action {
+        match event.key {
+            Key::Backspace => return Action::GoBack,
+            _ => Action::None,
+        }
+    }
 
-    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, _d: &mut D) {}
+    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, d: &mut D) {
+        d.draw_text("JUNO", 0, 0, 5, Color::WHITE);
+    }
 }
 
 impl Default for JunoUi {
