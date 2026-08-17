@@ -1,12 +1,30 @@
-name: CI
+name: test
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - name: Format
+            command: cargo fmt --check
+            needs_raylib: false
+          - name: Build
+            command: cargo build --all-targets
+            needs_raylib: true
+          - name: Test
+            command: cargo test --all-targets
+            needs_raylib: true
+          - name: Clippy
+            command: cargo clippy --all-targets -- -D warnings
+            needs_raylib: true
+    name: ${{ matrix.check.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -15,9 +33,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install Raylib build dependencies
+        if: matrix.check.needs_raylib
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl1-mesa-dev libwayland-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
 
-      - run: cargo fmt --check
-      - run: cargo build --all-targets
-      - run: cargo test --all-targets
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: ${{ matrix.check.command }}
