@@ -1,6 +1,9 @@
 //! Polyphonic synth with an owned `Osc -> Lpf -> Adsr` chain per voice.
 
+use raylib::prelude::*;
+
 use crate::audio::{Adsr, AdsrStage, Context, Lpf, Osc, OscKind, Sample};
+use crate::input::Event;
 
 const SYNTH_TUNING: f32 = 440.0;
 const NUM_VOICES: usize = 16;
@@ -55,6 +58,24 @@ pub struct Juno {
     pub cutoff: f32,
     voices: Vec<Voice>,
     next_idx: usize,
+}
+
+pub struct JunoUi;
+
+impl JunoUi {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn handle_event(&mut self, _juno: &mut Juno, _event: Event) {}
+
+    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, _d: &mut D) {}
+}
+
+impl Default for JunoUi {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Juno {
