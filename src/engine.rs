@@ -247,6 +247,7 @@ impl Track {
 
     /// Render this track into its owned buffer, then mix it into `out`.
     pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
+        // resize is not a big problem since expected # of allocs is constant
         if self.buffer.len() < out.len() {
             self.buffer.resize(out.len(), 0.0);
         }
