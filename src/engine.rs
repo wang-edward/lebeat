@@ -35,6 +35,21 @@ pub struct Track {
     buffer: Vec<Sample>,
 }
 
+pub enum TrackSource {
+    Instrument {
+        instrument: Instrument,
+        notes: Vec<Note>,
+    },
+    Audio {
+        clips: Vec<AudioClip>,
+    },
+}
+
+pub struct AudioClip {
+    start: Frame,
+    samples: Vec<Sample>,
+}
+
 impl Engine {
     pub fn new(sample_rate: f32, bpm: f32) -> Self {
         Self {
