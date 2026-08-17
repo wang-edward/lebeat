@@ -51,13 +51,13 @@ impl Voice {
     }
 }
 
-pub struct Uni {
+pub struct Juno {
     pub cutoff: f32,
     voices: Vec<Voice>,
     next_idx: usize,
 }
 
-impl Uni {
+impl Juno {
     pub fn new() -> Self {
         Self {
             cutoff: 5000.0,
@@ -114,7 +114,7 @@ impl Uni {
     }
 }
 
-impl Default for Uni {
+impl Default for Juno {
     fn default() -> Self {
         Self::new()
     }
