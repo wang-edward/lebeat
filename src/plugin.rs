@@ -1,22 +1,28 @@
 use raylib::prelude::*;
 
-use crate::audio::{Context, Delay, Lpf, Param, Sample};
-use crate::input::{Event, Key};
+use crate::audio::{Context, Param, Sample};
+use crate::input::Event;
 use crate::interface::draw_text_centered;
 
+mod delay_plugin;
+mod lpf_plugin;
+
+use delay_plugin::{DelayPlugin, DelayPluginUi};
+use lpf_plugin::{LpfPlugin, LpfPluginUi};
+
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tag {
+pub enum PluginKind {
     Lpf,
     Delay,
 }
 
-pub const LIST: [Tag; 2] = [Tag::Lpf, Tag::Delay];
+pub const LIST: [PluginKind; 2] = [PluginKind::Lpf, PluginKind::Delay];
 
-impl Tag {
+impl PluginKind {
     pub fn name(self) -> &'static str {
         match self {
-            Tag::Lpf => "lpf",
-            Tag::Delay => "delay",
+            Self::Lpf => "lpf",
+            Self::Delay => "delay",
         }
     }
 }
@@ -32,17 +38,10 @@ pub enum Plugin {
 }
 
 impl Plugin {
-    pub fn new(tag: Tag) -> Self {
-        match tag {
-            Tag::Lpf => Self::Lpf(LpfPlugin::new()),
-            Tag::Delay => Self::Delay(DelayPlugin::new()),
-        }
-    }
-
-    pub fn tag(&self) -> Tag {
+    pub fn kind(&self) -> PluginKind {
         match self {
-            Self::Lpf(_) => Tag::Lpf,
-            Self::Delay(_) => Tag::Delay,
+            Self::Lpf(_) => PluginKind::Lpf,
+            Self::Delay(_) => PluginKind::Delay,
         }
     }
 
@@ -50,40 +49,6 @@ impl Plugin {
         match self {
             Self::Lpf(plugin) => plugin.process(ctx, buf),
             Self::Delay(plugin) => plugin.process(ctx, buf),
-        }
-    }
-}
-
-pub struct LpfPlugin {
-    dsp: Lpf,
-}
-
-impl LpfPlugin {
-    fn new() -> Self {
-        Self { dsp: Lpf::new() }
-    }
-
-    fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        for sample in buf {
-            *sample = self.dsp.process(ctx, *sample);
-        }
-    }
-}
-
-pub struct DelayPlugin {
-    dsp: Delay,
-}
-
-impl DelayPlugin {
-    fn new() -> Self {
-        Self {
-            dsp: Delay::new(48_000),
-        }
-    }
-
-    fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
-        for sample in buf {
-            *sample = self.dsp.process(ctx, *sample);
         }
     }
 }
@@ -125,13 +90,6 @@ pub enum PluginUi {
 }
 
 impl PluginUi {
-    pub fn new(tag: Tag) -> Self {
-        match tag {
-            Tag::Lpf => Self::Lpf(LpfPluginUi::new()),
-            Tag::Delay => Self::Delay(DelayPluginUi::new()),
-        }
-    }
-
     pub fn handle_event(&mut self, plugin: &mut Plugin, event: Event) -> Action {
         match self {
             Self::Lpf(ui) => {
@@ -167,77 +125,16 @@ impl PluginUi {
     }
 }
 
-pub struct LpfPluginUi {
-    drive: Knob,
-    resonance: Knob,
-    cutoff: Knob,
-}
-
-impl LpfPluginUi {
-    fn new() -> Self {
-        Self {
-            drive: Knob::new(32.0, 32.0, "drive"),
-            resonance: Knob::new(96.0, 32.0, "resonance"),
-            cutoff: Knob::new(32.0, 96.0, "cutoff"),
-        }
-    }
-
-    fn handle_event(&mut self, plugin: &mut LpfPlugin, event: Event) -> Action {
-        match event.key {
-            Key::Backspace => return Action::GoBack,
-            Key::One => nudge(&mut plugin.dsp.drive, -0.1),
-            Key::Two => nudge(&mut plugin.dsp.drive, 0.1),
-            Key::Three => nudge(&mut plugin.dsp.resonance, -0.1),
-            Key::Four => nudge(&mut plugin.dsp.resonance, 0.1),
-            Key::Five => nudge(&mut plugin.dsp.cutoff, -0.1),
-            Key::Six => nudge(&mut plugin.dsp.cutoff, 0.1),
-            _ => {}
-        }
-        Action::None
-    }
-
-    fn render<D: RaylibDraw>(&self, plugin: &LpfPlugin, d: &mut D) {
-        self.drive.render(d, &plugin.dsp.drive);
-        self.resonance.render(d, &plugin.dsp.resonance);
-        self.cutoff.render(d, &plugin.dsp.cutoff);
-        draw_text_centered(d, "LPF", 64, 64, 10, Color::GREEN);
-    }
-}
-
-pub struct DelayPluginUi {
-    delay_time: Knob,
-    feedback: Knob,
-    mix: Knob,
-}
-
-impl DelayPluginUi {
-    fn new() -> Self {
-        Self {
-            delay_time: Knob::new(32.0, 32.0, "delay_time"),
-            feedback: Knob::new(96.0, 32.0, "feedback"),
-            mix: Knob::new(32.0, 96.0, "mix"),
-        }
-    }
-
-    fn handle_event(&mut self, plugin: &mut DelayPlugin, event: Event) -> Action {
-        match event.key {
-            Key::Backspace => return Action::GoBack,
-            Key::One => nudge(&mut plugin.dsp.delay_time, -0.1),
-            Key::Two => nudge(&mut plugin.dsp.delay_time, 0.1),
-            Key::Three => nudge(&mut plugin.dsp.feedback, -0.1),
-            Key::Four => nudge(&mut plugin.dsp.feedback, 0.1),
-            Key::Five => nudge(&mut plugin.dsp.mix, -0.1),
-            Key::Six => nudge(&mut plugin.dsp.mix, 0.1),
-            _ => {}
-        }
-        Action::None
-    }
-
-    fn render<D: RaylibDraw>(&self, plugin: &DelayPlugin, d: &mut D) {
-        self.delay_time.render(d, &plugin.dsp.delay_time);
-        self.feedback.render(d, &plugin.dsp.feedback);
-        self.mix.render(d, &plugin.dsp.mix);
-        draw_text_centered(d, "DELAY", 64, 64, 10, Color::PURPLE);
+pub fn create(kind: PluginKind) -> (Plugin, PluginUi) {
+    match kind {
+        PluginKind::Lpf => (
+            Plugin::Lpf(LpfPlugin::new()),
+            PluginUi::Lpf(LpfPluginUi::new()),
+        ),
+        PluginKind::Delay => (
+            Plugin::Delay(DelayPlugin::new()),
+            PluginUi::Delay(DelayPluginUi::new()),
+        ),
     }
 }
 
