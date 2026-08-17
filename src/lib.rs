@@ -19,7 +19,7 @@ pub mod ui;
 #[cfg(test)]
 mod tests {
     use crate::audio::Context;
-    use crate::instrument::Uni;
+    use crate::instrument::juno::Juno;
     use crate::midi::{self, Note};
 
     const SR: f32 = 48_000.0;
@@ -28,7 +28,7 @@ mod tests {
     #[test]
     fn synth_produces_finite_audio_and_releases() {
         let ctx = Context::new(SR, 120.0);
-        let mut synth = Uni::new();
+        let mut synth = Juno::new();
         let mut out = vec![0.0; BLOCK];
 
         synth.note_on(69); // A4

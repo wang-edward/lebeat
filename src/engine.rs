@@ -3,7 +3,8 @@
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
 use crate::audio::{Context, Sample};
-use crate::instrument::Uni;
+use crate::instrument::Instrument;
+use crate::instrument::juno::Juno;
 use crate::midi::{Frame, Note};
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginUi, Tag as PluginTag};
@@ -28,7 +29,7 @@ pub struct Timeline {
 }
 
 pub struct Track {
-    pub synth: Uni,
+    pub instrument: Instrument,
     pub notes: Vec<Note>,
     pub plugins: Vec<Plugin>,
     buffer: Vec<Sample>,
@@ -106,7 +107,7 @@ impl Engine {
 
     pub fn note_on(&mut self, note: u8) {
         let at = self.timeline.active_track;
-        self.timeline.tracks[at].synth.note_on(note);
+        self.timeline.tracks[at].instrument.note_on(note);
         if self.recording && self.playing {
             self.held_notes[note as usize] = Some(self.timeline.playhead);
         }
@@ -114,7 +115,7 @@ impl Engine {
 
     pub fn note_off(&mut self, note: u8) {
         let at = self.timeline.active_track;
-        self.timeline.tracks[at].synth.note_off(note);
+        self.timeline.tracks[at].instrument.note_off(note);
         if self.recording
             && self.playing
             && let Some(start) = self.held_notes[note as usize]
@@ -130,7 +131,7 @@ impl Engine {
 
     fn all_notes_off(&mut self) {
         for t in &mut self.timeline.tracks {
-            t.synth.all_notes_off();
+            t.instrument.all_notes_off();
         }
     }
 
@@ -198,10 +199,10 @@ impl Engine {
             for t in &mut self.timeline.tracks {
                 for note in &t.notes {
                     if start <= note.start && note.start < end {
-                        t.synth.note_on(note.note);
+                        t.instrument.note_on(note.note);
                     }
                     if start <= note.end && note.end < end {
-                        t.synth.note_off(note.note);
+                        t.instrument.note_off(note.note);
                     }
                 }
             }
@@ -238,7 +239,7 @@ impl Track {
         let mut plugins = Vec::new();
         plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
         Self {
-            synth: Uni::new(),
+            instrument: Instrument::Juno(Juno::new()),
             notes: notes.to_vec(),
             plugins,
             buffer: Vec::new(),
@@ -252,7 +253,7 @@ impl Track {
             self.buffer.resize(out.len(), 0.0);
         }
         let buffer = &mut self.buffer[..out.len()];
-        self.synth.process(ctx, buffer);
+        self.instrument.process(ctx, buffer);
         for p in &mut self.plugins {
             p.process(ctx, buffer);
         }
