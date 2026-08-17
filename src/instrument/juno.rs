@@ -9,6 +9,7 @@ use crate::ui::Action;
 const SYNTH_TUNING: f32 = 440.0;
 const NUM_VOICES: usize = 16;
 
+// TODO use note = Option<u8> instead
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NoteState {
     Off,
@@ -21,6 +22,14 @@ struct Voice {
     adsr: Adsr,
     note_state: NoteState,
 }
+
+pub struct Juno {
+    pub cutoff: f32,
+    voices: Vec<Voice>,
+    next_idx: usize,
+}
+
+pub struct JunoUi;
 
 impl Voice {
     fn new(freq: f32) -> Self {
@@ -52,37 +61,6 @@ impl Voice {
             self.note_state = NoteState::Off;
             self.adsr.note_off();
         }
-    }
-}
-
-pub struct Juno {
-    pub cutoff: f32,
-    voices: Vec<Voice>,
-    next_idx: usize,
-}
-
-pub struct JunoUi;
-
-impl JunoUi {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn handle_event(&mut self, _juno: &mut Juno, event: Event) -> Action {
-        match event.key {
-            Key::Backspace => Action::GoBack,
-            _ => Action::None,
-        }
-    }
-
-    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, d: &mut D) {
-        d.draw_text("JUNO", 0, 0, 5, Color::WHITE);
-    }
-}
-
-impl Default for JunoUi {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -144,6 +122,29 @@ impl Juno {
 }
 
 impl Default for Juno {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JunoUi {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn handle_event(&mut self, _juno: &mut Juno, event: Event) -> Action {
+        match event.key {
+            Key::Backspace => Action::GoBack,
+            _ => Action::None,
+        }
+    }
+
+    pub fn render<D: RaylibDraw>(&self, _juno: &Juno, d: &mut D) {
+        d.draw_text("JUNO", 0, 0, 5, Color::WHITE);
+    }
+}
+
+impl Default for JunoUi {
     fn default() -> Self {
         Self::new()
     }
