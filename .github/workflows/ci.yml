@@ -12,16 +12,13 @@ jobs:
       fail-fast: false
       matrix:
         check:
-          - name: Format
+          - name: format
             command: cargo fmt --check
             needs_raylib: false
-          - name: Build
-            command: cargo build --all-targets
-            needs_raylib: true
-          - name: Test
+          - name: test
             command: cargo test --all-targets
             needs_raylib: true
-          - name: Clippy
+          - name: clippy
             command: cargo clippy --all-targets -- -D warnings
             needs_raylib: true
     name: ${{ matrix.check.name }}
