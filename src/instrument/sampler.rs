@@ -12,7 +12,6 @@ pub struct SampleBuffer {
     samples: Vec<Sample>,
     sample_rate: f32,
 }
-
 impl SampleBuffer {
     pub fn load_wav(path: impl AsRef<Path>) -> std::io::Result<Self> {
         Ok(Self::decode_wav(&std::fs::read(path)?))
@@ -83,7 +82,6 @@ struct SamplerVoice {
     note: Option<u8>,
     position: f32,
 }
-pub struct SamplerUi;
 
 impl Sampler {
     pub fn new(sample: SampleBuffer) -> Self {
@@ -162,19 +160,46 @@ impl SamplerVoice {
     }
 }
 
+pub enum SamplerScreen {
+    Overview,
+    Picker,
+}
+pub struct SamplerUi {
+    screen: SamplerScreen,
+}
+
 impl SamplerUi {
     pub fn new() -> Self {
-        Self
-    }
-
-    pub fn handle_event(&mut self, _sampler: &mut Sampler, event: Event) -> Action {
-        match event.key {
-            Key::Backspace => Action::GoBack,
-            _ => Action::None,
+        SamplerUi {
+            screen: SamplerScreen::Overview,
         }
     }
 
-    pub fn render<D: RaylibDraw>(&self, _sampler: &Sampler, _d: &mut D) {}
+    pub fn handle_event(&mut self, _sampler: &mut Sampler, event: Event) -> Action {
+        match self.screen {
+            SamplerScreen::Overview => match event.key {
+                Key::Backspace => return Action::GoBack,
+                Key::R => self.screen = SamplerScreen::Picker,
+                _ => {}
+            },
+            SamplerScreen::Picker => match event.key {
+                Key::Backspace => self.screen = SamplerScreen::Overview,
+                _ => {}
+            },
+        }
+        Action::None
+    }
+
+    pub fn render<D: RaylibDraw>(&self, _sampler: &Sampler, d: &mut D) {
+        match self.screen {
+            SamplerScreen::Overview => {
+                d.draw_text("OVERVIEW", 0, 0, 10, Color::WHITE);
+            }
+            SamplerScreen::Picker => {
+                d.draw_text("PICKER", 0, 0, 10, Color::WHITE);
+            }
+        }
+    }
 }
 
 impl Default for SamplerUi {
