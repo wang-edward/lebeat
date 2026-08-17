@@ -11,9 +11,27 @@ use crate::ui::Action;
 use juno::{Juno, JunoUi};
 use sampler::{Sampler, SamplerUi};
 
+pub enum InstrumentKind {
+    Juno,
+    Sampler,
+}
+
 pub enum Instrument {
     Juno(Juno),
     Sampler(Sampler),
+}
+
+pub fn create(kind: InstrumentKind) -> (Instrument, InstrumentUi) {
+    match kind {
+        InstrumentKind::Juno => (
+            Instrument::Juno(Juno::new()),
+            InstrumentUi::Juno(JunoUi::new()),
+        ),
+        InstrumentKind::Sampler => (
+            Instrument::Sampler(Sampler::new()),
+            InstrumentUi::Sampler(SamplerUi::new()),
+        ),
+    }
 }
 
 impl Instrument {

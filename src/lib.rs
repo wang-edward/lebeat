@@ -20,6 +20,7 @@ pub mod ui;
 mod tests {
     use crate::audio::Context;
     use crate::instrument::juno::Juno;
+    use crate::instrument::sampler::Sampler;
     use crate::midi::{self, Note};
 
     const SR: f32 = 48_000.0;
@@ -51,6 +52,22 @@ mod tests {
             synth.process(&ctx, &mut out);
         }
         assert!(synth.is_idle(), "voices never returned to idle");
+    }
+
+    #[test]
+    fn sampler_produces_audio() {
+        let ctx = Context::new(SR, 120.0);
+        let mut sampler = Sampler::new();
+        let mut out = vec![0.0; BLOCK];
+
+        sampler.note_on(60);
+        sampler.process(&ctx, &mut out);
+
+        assert!(out.iter().all(|sample| sample.is_finite()));
+        assert!(
+            out.iter().any(|sample| *sample != 0.0),
+            "sampler was silent"
+        );
     }
 
     #[test]
