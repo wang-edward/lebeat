@@ -1,8 +1,14 @@
 use raylib::prelude::*;
 
-use crate::audio::{Context, Delay, Lpf, Param, Sample};
-use crate::input::{Event, Key};
+use crate::audio::{Context, Param, Sample};
+use crate::input::Event;
 use crate::interface::draw_text_centered;
+
+mod delay_plugin;
+mod lpf_plugin;
+
+use delay_plugin::{DelayPlugin, DelayPluginUi};
+use lpf_plugin::{LpfPlugin, LpfPluginUi};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PluginKind {
@@ -130,4 +136,8 @@ pub fn create(kind: PluginKind) -> (Plugin, PluginUi) {
             PluginUi::Delay(DelayPluginUi::new()),
         ),
     }
+}
+
+fn nudge(param: &mut Param, delta: f32) {
+    param.set_norm(param.get_norm() + delta);
 }

@@ -1,15 +1,23 @@
+use raylib::prelude::*;
+
+use crate::audio::{Context, Delay, Sample};
+use crate::input::{Event, Key};
+use crate::interface::draw_text_centered;
+
+use super::{Action, Knob, nudge};
+
 pub struct DelayPlugin {
     dsp: Delay,
 }
 
 impl DelayPlugin {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             dsp: Delay::new(48_000),
         }
     }
 
-    fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
+    pub(super) fn process(&mut self, ctx: &Context, buf: &mut [Sample]) {
         for sample in buf {
             *sample = self.dsp.process(ctx, *sample);
         }
@@ -23,7 +31,7 @@ pub struct DelayPluginUi {
 }
 
 impl DelayPluginUi {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             delay_time: Knob::new(32.0, 32.0, "delay_time"),
             feedback: Knob::new(96.0, 32.0, "feedback"),
@@ -31,7 +39,7 @@ impl DelayPluginUi {
         }
     }
 
-    fn handle_event(&mut self, plugin: &mut DelayPlugin, event: Event) -> Action {
+    pub(super) fn handle_event(&mut self, plugin: &mut DelayPlugin, event: Event) -> Action {
         match event.key {
             Key::Backspace => return Action::GoBack,
             Key::One => nudge(&mut plugin.dsp.delay_time, -0.1),
@@ -45,14 +53,10 @@ impl DelayPluginUi {
         Action::None
     }
 
-    fn render<D: RaylibDraw>(&self, plugin: &DelayPlugin, d: &mut D) {
+    pub(super) fn render<D: RaylibDraw>(&self, plugin: &DelayPlugin, d: &mut D) {
         self.delay_time.render(d, &plugin.dsp.delay_time);
         self.feedback.render(d, &plugin.dsp.feedback);
         self.mix.render(d, &plugin.dsp.mix);
         draw_text_centered(d, "DELAY", 64, 64, 10, Color::PURPLE);
     }
-}
-
-fn nudge(param: &mut Param, delta: f32) {
-    param.set_norm(param.get_norm() + delta);
 }
