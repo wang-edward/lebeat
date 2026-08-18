@@ -10,7 +10,9 @@ fn main() {
     use raylib::prelude::*;
 
     use ledaw::audio_out;
-    use ledaw::engine::{Engine, Track};
+    use ledaw::engine::{Engine, Track, TrackSource};
+    use ledaw::instrument::Instrument;
+    use ledaw::instrument::sampler::Sampler;
     use ledaw::interface::{self, HEIGHT, WIDTH};
     use ledaw::midi::{Note, beats_to_frames};
     use ledaw::ui::{App, Icons};
@@ -54,8 +56,14 @@ fn main() {
     ];
 
     let mut engine = Engine::new(sr, tempo);
-    engine.add_track(Track::new(&lead));
-    engine.add_track(Track::new(&bass));
+    engine.add_track(Track::new(TrackSource::Instrument {
+        instrument: Instrument::Sampler(Sampler::default()),
+        notes: lead.to_vec(),
+    }));
+    engine.add_track(Track::new(TrackSource::Instrument {
+        instrument: Instrument::Sampler(Sampler::default()),
+        notes: bass.to_vec(),
+    }));
     let engine = Arc::new(Mutex::new(engine));
 
     // Audio stream (held until the end of main).

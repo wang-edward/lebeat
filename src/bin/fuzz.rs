@@ -4,8 +4,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use raylib::prelude::*;
 
 use ledaw::audio_out;
-use ledaw::engine::{Engine, Track};
+use ledaw::engine::{Engine, Track, TrackSource};
 use ledaw::input::{Event, EventType, POLL_KEYS};
+use ledaw::instrument::Instrument;
+use ledaw::instrument::sampler::Sampler;
 use ledaw::interface::{HEIGHT, WIDTH};
 use ledaw::midi::beats_to_frames;
 use ledaw::ui::{App, Icons};
@@ -34,7 +36,10 @@ fn main() {
     let tempo = 120.0f32;
 
     let mut engine = Engine::new(sr, tempo);
-    engine.add_track(Track::new(&[]));
+    engine.add_track(Track::new(TrackSource::Instrument {
+        instrument: Instrument::Sampler(Sampler::default()),
+        notes: Vec::new(),
+    }));
     let engine = Arc::new(Mutex::new(engine));
 
     let _audio = audio_out::start(engine.clone()).expect("failed to start audio");

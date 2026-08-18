@@ -4,7 +4,6 @@
 //!
 use crate::audio::{AudioBuffer, Context, Sample};
 use crate::instrument::Instrument;
-use crate::instrument::sampler::Sampler;
 use crate::midi::{Frame, Note};
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginKind, PluginUi, create};
@@ -201,15 +200,15 @@ impl Engine {
         let end = start + out.len() as u64;
 
         for t in &mut self.timeline.tracks {
-            if self.playing {
-                if let TrackSource::Instrument { instrument, notes } = &mut t.source {
-                    for note in notes {
-                        if start <= note.start && note.start < end {
-                            instrument.note_on(note.note);
-                        }
-                        if start <= note.end && note.end < end {
-                            instrument.note_off(note.note);
-                        }
+            if self.playing
+                && let TrackSource::Instrument { instrument, notes } = &mut t.source
+            {
+                for note in notes {
+                    if start <= note.start && note.start < end {
+                        instrument.note_on(note.note);
+                    }
+                    if start <= note.end && note.end < end {
+                        instrument.note_off(note.note);
                     }
                 }
             }
