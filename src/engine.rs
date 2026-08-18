@@ -213,7 +213,7 @@ impl Engine {
                     }
                 }
             }
-            t.process(&self.ctx, start, out);
+            t.process(&self.ctx, start, self.playing, out);
         }
 
         if self.playing {
@@ -274,7 +274,7 @@ impl Track {
     }
 
     /// Process this track into its owned buffer, then mix it into `out`.
-    pub fn process(&mut self, ctx: &Context, playhead: Frame, out: &mut [Sample]) {
+    pub fn process(&mut self, ctx: &Context, playhead: Frame, playing: bool, out: &mut [Sample]) {
         // resize is not a big problem since expected # of allocs is constant
         if self.buffer.len() < out.len() {
             self.buffer.resize(out.len(), 0.0);
@@ -286,7 +286,7 @@ impl Track {
             TrackSource::Instrument { instrument, .. } => {
                 instrument.process(ctx, buffer);
             }
-            TrackSource::Audio { clips } => {
+            TrackSource::Audio { clips } if playing => {
                 let block_start = playhead;
                 let block_end = playhead + buffer.len() as Frame;
                 for clip in clips {
@@ -305,6 +305,7 @@ impl Track {
                     }
                 }
             }
+            TrackSource::Audio { .. } => {}
         }
 
         for p in &mut self.plugins {
