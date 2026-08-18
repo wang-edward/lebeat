@@ -72,7 +72,7 @@ fn main() {
     engine.add_track(Track::new(TrackSource::Audio {
         clips: vec![
             AudioClip::new(0, audio),
-            AudioClip::new(beats_to_frames(8.0, tempo, sr), audio2),
+            AudioClip::new(beats_to_frames(7.0, tempo, sr), audio2),
         ],
     }));
     let engine = Arc::new(Mutex::new(engine));

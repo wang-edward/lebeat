@@ -374,7 +374,13 @@ impl AudioClip {
         let center = row_y + row_height / 2;
         let amplitude = row_height / 2 - 3;
 
-        d.draw_rectangle(x1, row_y + 1, x2 - x1, row_height - 1, Color::DARKBLUE);
+        d.draw_rectangle(
+            x1,
+            row_y + 1,
+            x2 - x1,
+            row_height - 1,
+            Color::new(0, 82, 172, 128),
+        );
         for x in x1..x2 {
             let start_beat = view_start + (x as f32 / WIDTH as f32) * view_width;
             let end_beat = view_start + ((x + 1) as f32 / WIDTH as f32) * view_width;
