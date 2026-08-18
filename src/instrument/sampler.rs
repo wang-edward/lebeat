@@ -172,6 +172,7 @@ pub struct SamplerUi {
 
 impl SamplerUi {
     pub fn new() -> Self {
+        // TODO do something better on hardware
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/samples");
         let files = std::fs::read_dir(dir)
             .unwrap()
