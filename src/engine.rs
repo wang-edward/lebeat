@@ -374,7 +374,7 @@ impl AudioClip {
         let center = row_y + row_height / 2;
         let amplitude = row_height / 2 - 3;
 
-        d.draw_rectangle_lines(x1, row_y + 1, x2 - x1, row_height - 2, Color::SKYBLUE);
+        d.draw_rectangle(x1, row_y + 1, x2 - x1, row_height - 1, Color::DARKBLUE);
         for x in x1..x2 {
             let start_beat = view_start + (x as f32 / WIDTH as f32) * view_width;
             let end_beat = view_start + ((x + 1) as f32 / WIDTH as f32) * view_width;
@@ -394,7 +394,7 @@ impl AudioClip {
                 });
             let top = center - (max * amplitude as f32) as i32;
             let bottom = center - (min * amplitude as f32) as i32;
-            d.draw_line(x, top, x, bottom, Color::SKYBLUE);
+            d.draw_line(x, top, x, bottom, Color::WHITE);
         }
     }
 }
