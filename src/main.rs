@@ -13,6 +13,7 @@ fn main() {
     use ledaw::audio_out;
     use ledaw::engine::{AudioClip, Engine, Track, TrackSource};
     use ledaw::instrument::Instrument;
+    use ledaw::instrument::juno::Juno;
     use ledaw::instrument::sampler::Sampler;
     use ledaw::interface::{self, HEIGHT, WIDTH};
     use ledaw::midi::{Note, beats_to_frames};
@@ -62,7 +63,7 @@ fn main() {
         notes: lead.to_vec(),
     }));
     engine.add_track(Track::new(TrackSource::Instrument {
-        instrument: Instrument::Sampler(Sampler::default()),
+        instrument: Instrument::Juno(Juno::default()),
         notes: bass.to_vec(),
     }));
 

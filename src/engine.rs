@@ -288,20 +288,23 @@ impl Track {
             }
             TrackSource::Audio { clips } if playing => {
                 let block_start = playhead;
-                let block_end = playhead + buffer.len() as Frame;
+
                 for clip in clips {
-                    let clip_start = clip.start;
-                    let clip_end = clip.start + clip.audio.samples.len() as Frame;
-                    let start = block_start.max(clip_start);
-                    let end = block_end.min(clip_end);
-                    if start >= end {
-                        continue;
-                    }
-                    let buffer_offset = (start - block_start) as usize;
-                    let clip_offset = (start - clip_start) as usize;
-                    let len = (end - start) as usize;
-                    for i in 0..len {
-                        buffer[buffer_offset + i] += clip.audio.samples[clip_offset + i];
+                    let ratio = clip.audio.sample_rate as f32 / ctx.sample_rate;
+                    for (i, sample) in buffer.iter_mut().enumerate() {
+                        let frame = block_start + i as Frame;
+                        if frame < clip.start {
+                            continue;
+                        }
+
+                        let src_pos = (frame - clip.start) as f32 * ratio;
+                        let src_idx = src_pos as usize;
+
+                        if src_idx >= clip.audio.samples.len() {
+                            break;
+                        }
+
+                        *sample += clip.audio.samples[src_idx];
                     }
                 }
             }
