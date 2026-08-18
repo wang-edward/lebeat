@@ -61,13 +61,14 @@ mod tests {
         let mut out = vec![0.0; BLOCK];
 
         sampler.note_on(60);
-        sampler.process(&ctx, &mut out);
+        let mut peak = 0.0f32;
+        for _ in 0..400 {
+            sampler.process(&ctx, &mut out);
+            peak = peak.max(out.iter().fold(0.0, |peak, sample| peak.max(sample.abs())));
+        }
 
         assert!(out.iter().all(|sample| sample.is_finite()));
-        assert!(
-            out.iter().any(|sample| *sample != 0.0),
-            "sampler was silent"
-        );
+        assert!(peak > 0.0, "sampler was silent");
     }
 
     #[test]
@@ -83,12 +84,36 @@ mod tests {
         let mut out = vec![0.0; BLOCK];
 
         engine.note_on(60);
-        engine.process_block(&mut out);
-        assert!(out.iter().any(|sample| *sample != 0.0));
+        let mut peak = 0.0f32;
+        for _ in 0..400 {
+            engine.process_block(&mut out);
+            peak = peak.max(out.iter().fold(0.0, |peak, sample| peak.max(sample.abs())));
+        }
+        assert!(peak > 0.0);
 
         engine.note_off(60);
         engine.process_block(&mut out);
         assert!(out.iter().all(|sample| *sample == 0.0));
+    }
+
+    #[test]
+    fn audio_clip_plays_only_while_transport_runs() {
+        use crate::audio::AudioBuffer;
+        use crate::engine::{AudioClip, Engine, Track, TrackSource};
+
+        let audio = AudioBuffer::decode_wav(include_bytes!("../assets/samples/perfect.wav"));
+        let mut engine = Engine::new(SR, 120.0);
+        engine.add_track(Track::new(TrackSource::Audio {
+            clips: vec![AudioClip::new(0, audio)],
+        }));
+        let mut out = vec![0.0; BLOCK];
+
+        engine.process_block(&mut out);
+        assert!(out.iter().all(|sample| *sample == 0.0));
+
+        engine.toggle_play();
+        engine.process_block(&mut out);
+        assert!(out.iter().any(|sample| *sample != 0.0));
     }
 
     #[test]

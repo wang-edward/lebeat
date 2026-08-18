@@ -47,11 +47,6 @@ pub struct AudioClip {
     start: Frame,
     audio: AudioBuffer,
 }
-impl AudioClip {
-    pub fn new(start: Frame, audio: AudioBuffer) -> Self {
-        Self { start, audio }
-    }
-}
 
 impl Engine {
     pub fn new(sample_rate: f32, bpm: f32) -> Self {
@@ -337,5 +332,11 @@ impl Track {
         } else {
             false
         }
+    }
+}
+
+impl AudioClip {
+    pub fn new(start: Frame, audio: AudioBuffer) -> Self {
+        Self { start, audio }
     }
 }
