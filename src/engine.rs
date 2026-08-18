@@ -2,7 +2,7 @@
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
-use crate::audio::{Context, Sample};
+use crate::audio::{AudioBuffer, Context, Sample};
 use crate::instrument::Instrument;
 use crate::instrument::sampler::Sampler;
 use crate::midi::{Frame, Note};
@@ -29,8 +29,7 @@ pub struct Timeline {
 }
 
 pub struct Track {
-    pub instrument: Instrument,
-    pub notes: Vec<Note>,
+    pub source: TrackSource,
     pub plugins: Vec<Plugin>,
     buffer: Vec<Sample>,
 }
@@ -47,7 +46,7 @@ pub enum TrackSource {
 
 pub struct AudioClip {
     start: Frame,
-    samples: Vec<Sample>,
+    audio: AudioBuffer,
 }
 
 impl Engine {
@@ -199,8 +198,9 @@ impl Engine {
         // mix all tracks
         let n = out.len();
         out.fill(0.0);
+        let playhead = self.timeline.playhead;
         for t in &mut self.timeline.tracks {
-            t.process(&self.ctx, out);
+            t.process(&self.ctx, playhead, out);
         }
 
         debug_assert!(out.iter().all(|s| s.is_finite()), "NaN/inf in audio block");
@@ -250,25 +250,50 @@ impl Timeline {
 }
 
 impl Track {
-    pub fn new(notes: &[Note]) -> Self {
+    pub fn new(source: TrackSource) -> Self {
         let mut plugins = Vec::new();
         plugins.reserve_exact(MAX_PLUGINS); // never reallocs while audio holds the lock
         Self {
-            instrument: Instrument::Sampler(Sampler::default()),
-            notes: notes.to_vec(),
+            source,
             plugins,
             buffer: Vec::new(),
         }
     }
 
     /// Process this track into its owned buffer, then mix it into `out`.
-    pub fn process(&mut self, ctx: &Context, out: &mut [Sample]) {
+    pub fn process(&mut self, ctx: &Context, playhead: Frame, out: &mut [Sample]) {
         // resize is not a big problem since expected # of allocs is constant
         if self.buffer.len() < out.len() {
             self.buffer.resize(out.len(), 0.0);
         }
         let buffer = &mut self.buffer[..out.len()];
-        self.instrument.process(ctx, buffer);
+        buffer.fill(0.0);
+
+        match &mut self.source {
+            TrackSource::Instrument { instrument, .. } => {
+                instrument.process(ctx, buffer);
+            }
+            TrackSource::Audio { clips } => {
+                let block_start = playhead;
+                let block_end = playhead + buffer.len() as Frame;
+                for clip in clips {
+                    let clip_start = clip.start;
+                    let clip_end = clip.start + clip.audio.samples.len() as Frame;
+                    let start = block_start.max(clip_start);
+                    let end = block_end.min(clip_end);
+                    if start >= end {
+                        continue;
+                    }
+                    let buffer_offset = (start - block_start) as usize;
+                    let clip_offset = (start - clip_start) as usize;
+                    let len = (end - start) as usize;
+                    for i in 0..len {
+                        buffer[buffer_offset + i] += clip.audio.samples[clip_offset + i];
+                    }
+                }
+            }
+        }
+
         for p in &mut self.plugins {
             p.process(ctx, buffer);
         }
