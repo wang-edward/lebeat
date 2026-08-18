@@ -290,7 +290,7 @@ impl Track {
                 let block_start = playhead;
 
                 for clip in clips {
-                    let ratio = clip.audio.sample_rate as f32 / ctx.sample_rate;
+                    let ratio = clip.audio.sample_rate / ctx.sample_rate;
                     for (i, sample) in buffer.iter_mut().enumerate() {
                         let frame = block_start + i as Frame;
                         if frame < clip.start {
