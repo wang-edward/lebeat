@@ -121,7 +121,7 @@ impl Engine {
 
     pub fn note_on(&mut self, note: u8) {
         let at = self.timeline.active_track;
-        self.timeline.tracks[at].instrument.note_on(note);
+        self.timeline.tracks[at].note_on(note);
         if self.recording && self.playing {
             self.held_notes[note as usize] = Some(self.timeline.playhead);
         }
@@ -129,7 +129,7 @@ impl Engine {
 
     pub fn note_off(&mut self, note: u8) {
         let at = self.timeline.active_track;
-        self.timeline.tracks[at].instrument.note_off(note);
+        self.timeline.tracks[at].note_off(note);
         if self.recording
             && self.playing
             && let Some(start) = self.held_notes[note as usize]
@@ -145,7 +145,7 @@ impl Engine {
 
     fn all_notes_off(&mut self) {
         for t in &mut self.timeline.tracks {
-            t.instrument.all_notes_off();
+            t.all_notes_off();
         }
     }
 
@@ -177,7 +177,10 @@ impl Engine {
             if !self.record_buffer.is_empty() {
                 let at = self.timeline.active_track;
                 let buf = std::mem::take(&mut self.record_buffer);
-                self.timeline.tracks[at].notes.extend_from_slice(&buf);
+                if let TrackSource::Instrument { notes, .. } = &mut self.timeline.tracks[at].source
+                {
+                    notes.extend(buf);
+                }
             }
             self.held_notes = [None; 128];
             self.recording = false;
@@ -191,36 +194,30 @@ impl Engine {
         }
     }
 
-    // --- audio block (cpal callback calls this under the lock) ---
-
     /// Fill `out` (mono) with one block. Asserts finiteness in debug builds.
+    /// This is block-accurate midi, not sample accurate.
     pub fn process_block(&mut self, out: &mut [Sample]) {
-        // mix all tracks
-        let n = out.len();
-        out.fill(0.0);
-        let playhead = self.timeline.playhead;
+        let start = self.timeline.playhead;
+        let end = start + out.len() as u64;
+
         for t in &mut self.timeline.tracks {
-            t.process(&self.ctx, playhead, out);
-        }
-
-        debug_assert!(out.iter().all(|s| s.is_finite()), "NaN/inf in audio block");
-
-        // advance playhead + fire sequenced notes for the span we just rendered
-        if self.playing {
-            let start = self.timeline.playhead;
-            self.timeline.playhead += n as u64;
-            let end = self.timeline.playhead;
-
-            for t in &mut self.timeline.tracks {
-                for note in &t.notes {
-                    if start <= note.start && note.start < end {
-                        t.instrument.note_on(note.note);
-                    }
-                    if start <= note.end && note.end < end {
-                        t.instrument.note_off(note.note);
+            if self.playing {
+                if let TrackSource::Instrument { instrument, notes } = &mut t.source {
+                    for note in notes {
+                        if start <= note.start && note.start < end {
+                            instrument.note_on(note.note);
+                        }
+                        if start <= note.end && note.end < end {
+                            instrument.note_off(note.note);
+                        }
                     }
                 }
             }
+            t.process(&self.ctx, start, out);
+        }
+
+        if self.playing {
+            self.timeline.playhead = end;
         }
     }
 }
@@ -257,6 +254,22 @@ impl Track {
             source,
             plugins,
             buffer: Vec::new(),
+        }
+    }
+
+    pub fn note_on(&mut self, note: u8) {
+        if let TrackSource::Instrument { instrument, .. } = &mut self.source {
+            instrument.note_on(note);
+        }
+    }
+    pub fn note_off(&mut self, note: u8) {
+        if let TrackSource::Instrument { instrument, .. } = &mut self.source {
+            instrument.note_off(note);
+        }
+    }
+    pub fn all_notes_off(&mut self) {
+        if let TrackSource::Instrument { instrument, .. } = &mut self.source {
+            instrument.all_notes_off();
         }
     }
 
