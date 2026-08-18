@@ -13,8 +13,9 @@ use std::sync::{Arc, Mutex};
 
 use raylib::prelude::*;
 
-use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, PluginKind, PluginUi, create};
+use crate::engine::{Engine, MAX_PLUGINS, PLUGIN_LIST, PluginKind, PluginUi, TrackSource, create};
 use crate::input::{Event, EventType, Key};
+use crate::instrument::sampler::Sampler;
 use crate::instrument::{Instrument, InstrumentUi};
 use crate::interface::{HEIGHT, WIDTH, draw_text_centered};
 use crate::midi::{self, frames_to_beats};
@@ -116,11 +117,37 @@ enum TrackScreen {
 }
 
 struct TrackUi {
-    instrument: InstrumentUi,
+    source: TrackSourceUi,
     screen: TrackScreen,
     active_plugin: usize,
     selector_index: usize,
     plugins: Vec<PluginUi>,
+}
+
+enum TrackSourceUi {
+    Instrument(InstrumentUi),
+    Audio,
+}
+
+impl TrackSourceUi {
+    fn new(source: &TrackSource) -> Self {
+        match source {
+            TrackSource::Instrument { instrument, .. } => {
+                Self::Instrument(InstrumentUi::new(instrument))
+            }
+            TrackSource::Audio { .. } => Self::Audio,
+        }
+    }
+
+    fn matches(&self, source: &TrackSource) -> bool {
+        match (self, source) {
+            (Self::Instrument(ui), TrackSource::Instrument { instrument, .. }) => {
+                ui.matches(instrument)
+            }
+            (Self::Audio, TrackSource::Audio { .. }) => true,
+            _ => false,
+        }
+    }
 }
 
 const HEADER_HEIGHT: i32 = 12;
@@ -133,7 +160,7 @@ impl App {
             .unwrap()
             .tracks()
             .iter()
-            .map(|track| TrackUi::new(&track.instrument))
+            .map(|track| TrackUi::new(&track.source))
             .collect();
         Self {
             engine,
@@ -266,8 +293,11 @@ impl TimelineUi {
                 Key::Backspace => eng.reset(),
                 Key::R => eng.toggle_record(),
                 Key::Equal if eng.track_count() < crate::engine::MAX_TRACKS => {
-                    let track = crate::engine::Track::new(&[]);
-                    let track_ui = TrackUi::new(&track.instrument);
+                    let track = crate::engine::Track::new(TrackSource::Instrument {
+                        instrument: Instrument::Sampler(Sampler::default()),
+                        notes: Vec::new(),
+                    });
+                    let track_ui = TrackUi::new(&track.source);
                     if eng.add_track(track) {
                         self.tracks.push(track_ui);
                     }
@@ -331,7 +361,10 @@ impl TimelineUi {
                 for i in 0..num_rows {
                     let row_y = i as i32 * ROW_HEIGHT + HEADER_HEIGHT;
                     d.draw_rectangle_lines(0, row_y, WIDTH, ROW_HEIGHT, Color::DARKGRAY);
-                    for note in &eng.track(i).notes {
+                    let TrackSource::Instrument { notes, .. } = &eng.track(i).source else {
+                        continue;
+                    };
+                    for note in notes {
                         let sb = frames_to_beats(note.start, eng.bpm(), eng.sample_rate());
                         let eb = frames_to_beats(note.end, eng.bpm(), eng.sample_rate());
                         if eb < self.frame.left() || sb > self.frame.right() {
@@ -375,9 +408,9 @@ impl TimelineUi {
 }
 
 impl TrackUi {
-    fn new(instrument: &Instrument) -> Self {
+    fn new(source: &TrackSource) -> Self {
         Self {
-            instrument: InstrumentUi::new(instrument),
+            source: TrackSourceUi::new(source),
             screen: TrackScreen::Overview,
             active_plugin: 0,
             selector_index: 0,
@@ -386,7 +419,7 @@ impl TrackUi {
     }
 
     fn handle_event(&mut self, ev: Event, eng: &mut Engine, track_idx: usize) -> bool {
-        debug_assert!(self.instrument.matches(&eng.track(track_idx).instrument));
+        debug_assert!(self.source.matches(&eng.track(track_idx).source));
         debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
@@ -434,8 +467,13 @@ impl TrackUi {
                 _ => {}
             },
             TrackScreen::Instrument => {
-                let instrument = &mut eng.track_mut(track_idx).instrument;
-                if let Action::GoBack = self.instrument.handle_event(instrument, ev) {
+                let (TrackSourceUi::Instrument(ui), TrackSource::Instrument { instrument, .. }) =
+                    (&mut self.source, &mut eng.track_mut(track_idx).source)
+                else {
+                    self.screen = TrackScreen::Overview;
+                    return false;
+                };
+                if let Action::GoBack = ui.handle_event(instrument, ev) {
                     self.screen = TrackScreen::Overview;
                 }
             }
@@ -444,7 +482,7 @@ impl TrackUi {
     }
 
     fn render<D: RaylibDraw>(&self, d: &mut D, eng: &Engine, icons: &Icons, track_idx: usize) {
-        debug_assert!(self.instrument.matches(&eng.track(track_idx).instrument));
+        debug_assert!(self.source.matches(&eng.track(track_idx).source));
         debug_assert_eq!(self.plugins.len(), eng.track(track_idx).plugins.len());
         match self.screen {
             TrackScreen::Overview => {
@@ -508,8 +546,12 @@ impl TrackUi {
                 }
             }
             TrackScreen::Instrument => {
-                let instrument = &eng.track(track_idx).instrument;
-                self.instrument.render(instrument, d);
+                let (TrackSourceUi::Instrument(ui), TrackSource::Instrument { instrument, .. }) =
+                    (&self.source, &eng.track(track_idx).source)
+                else {
+                    return;
+                };
+                ui.render(instrument, d);
             }
         }
     }

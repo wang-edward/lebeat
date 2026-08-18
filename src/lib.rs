@@ -61,30 +61,83 @@ mod tests {
         let mut out = vec![0.0; BLOCK];
 
         sampler.note_on(60);
-        sampler.process(&ctx, &mut out);
+        let mut peak = 0.0f32;
+        for _ in 0..400 {
+            sampler.process(&ctx, &mut out);
+            peak = peak.max(out.iter().fold(0.0, |peak, sample| peak.max(sample.abs())));
+        }
 
         assert!(out.iter().all(|sample| sample.is_finite()));
-        assert!(
-            out.iter().any(|sample| *sample != 0.0),
-            "sampler was silent"
-        );
+        assert!(peak > 0.0, "sampler was silent");
+    }
+
+    #[test]
+    fn engine_clears_released_sampler_audio() {
+        use crate::engine::{Engine, Track, TrackSource};
+        use crate::instrument::Instrument;
+
+        let mut engine = Engine::new(SR, 120.0);
+        engine.add_track(Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: Vec::new(),
+        }));
+        let mut out = vec![0.0; BLOCK];
+
+        engine.note_on(60);
+        let mut peak = 0.0f32;
+        for _ in 0..400 {
+            engine.process_block(&mut out);
+            peak = peak.max(out.iter().fold(0.0, |peak, sample| peak.max(sample.abs())));
+        }
+        assert!(peak > 0.0);
+
+        engine.note_off(60);
+        engine.process_block(&mut out);
+        assert!(out.iter().all(|sample| *sample == 0.0));
+    }
+
+    #[test]
+    fn audio_clip_plays_only_while_transport_runs() {
+        use crate::audio::AudioBuffer;
+        use crate::engine::{AudioClip, Engine, Track, TrackSource};
+
+        let audio = AudioBuffer::decode_wav(include_bytes!("../assets/samples/perfect.wav"));
+        let mut engine = Engine::new(SR, 120.0);
+        engine.add_track(Track::new(TrackSource::Audio {
+            clips: vec![AudioClip::new(0, audio)],
+        }));
+        let mut out = vec![0.0; BLOCK];
+
+        engine.process_block(&mut out);
+        assert!(out.iter().all(|sample| *sample == 0.0));
+
+        engine.toggle_play();
+        engine.process_block(&mut out);
+        assert!(out.iter().any(|sample| *sample != 0.0));
     }
 
     #[test]
     fn track_owns_its_notes() {
-        use crate::engine::Track;
+        use crate::engine::{Track, TrackSource};
+        use crate::instrument::Instrument;
 
         let notes = [Note {
             start: 10,
             end: 100,
             note: 60,
         }];
-        let track = Track::new(&notes);
+        let track = Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: notes.to_vec(),
+        });
+        let TrackSource::Instrument { notes, .. } = track.source else {
+            panic!("track source was not an instrument");
+        };
 
-        assert_eq!(track.notes.len(), 1);
-        assert_eq!(track.notes[0].start, 10);
-        assert_eq!(track.notes[0].end, 100);
-        assert_eq!(track.notes[0].note, 60);
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].start, 10);
+        assert_eq!(notes[0].end, 100);
+        assert_eq!(notes[0].note, 60);
     }
 
     #[test]
@@ -96,7 +149,8 @@ mod tests {
 
     #[test]
     fn engine_two_track_demo_renders() {
-        use crate::engine::{Engine, PluginKind, Track, create};
+        use crate::engine::{Engine, PluginKind, Track, TrackSource, create};
+        use crate::instrument::Instrument;
         use crate::midi::{Note, beats_to_frames};
         let sr = SR;
         let mk = |b0: f32, b1: f32, n: u8| Note {
@@ -108,8 +162,14 @@ mod tests {
         let bass = [mk(0.0, 2.0, 48), mk(2.0, 4.0, 43)];
 
         let mut eng = Engine::new(sr, 120.0);
-        eng.add_track(Track::new(&lead));
-        eng.add_track(Track::new(&bass));
+        eng.add_track(Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: lead.to_vec(),
+        }));
+        eng.add_track(Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: bass.to_vec(),
+        }));
         let (lpf, _) = create(PluginKind::Lpf);
         let (delay, _) = create(PluginKind::Delay);
         eng.add_plugin(0, lpf);
