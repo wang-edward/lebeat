@@ -12,6 +12,7 @@ pub mod input;
 pub mod instrument;
 pub mod midi;
 pub mod plugin;
+pub mod theme;
 
 pub mod interface;
 pub mod ui;

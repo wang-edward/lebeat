@@ -3,6 +3,7 @@ use raylib::prelude::*;
 use crate::audio::{Context, Delay, Sample};
 use crate::input::{Event, Key};
 use crate::interface::draw_text_centered;
+use crate::theme::{COLOR1, COLOR2, COLOR3};
 
 use super::{Action, Knob, nudge};
 
@@ -33,9 +34,9 @@ pub struct DelayPluginUi {
 impl DelayPluginUi {
     pub(super) fn new() -> Self {
         Self {
-            delay_time: Knob::new(32.0, 32.0, "delay_time"),
-            feedback: Knob::new(96.0, 32.0, "feedback"),
-            mix: Knob::new(32.0, 96.0, "mix"),
+            delay_time: Knob::new(32.0, 32.0, COLOR1, "delay_time"),
+            feedback: Knob::new(96.0, 32.0, COLOR2, "feedback"),
+            mix: Knob::new(32.0, 96.0, COLOR3, "mix"),
         }
     }
 
