@@ -198,6 +198,7 @@ impl Engine {
     pub fn process_block(&mut self, out: &mut [Sample]) {
         let start = self.timeline.playhead;
         let end = start + out.len() as u64;
+        out.fill(0.0);
 
         for t in &mut self.timeline.tracks {
             if self.playing

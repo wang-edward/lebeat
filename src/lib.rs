@@ -71,6 +71,27 @@ mod tests {
     }
 
     #[test]
+    fn engine_clears_released_sampler_audio() {
+        use crate::engine::{Engine, Track, TrackSource};
+        use crate::instrument::Instrument;
+
+        let mut engine = Engine::new(SR, 120.0);
+        engine.add_track(Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: Vec::new(),
+        }));
+        let mut out = vec![0.0; BLOCK];
+
+        engine.note_on(60);
+        engine.process_block(&mut out);
+        assert!(out.iter().any(|sample| *sample != 0.0));
+
+        engine.note_off(60);
+        engine.process_block(&mut out);
+        assert!(out.iter().all(|sample| *sample == 0.0));
+    }
+
+    #[test]
     fn track_owns_its_notes() {
         use crate::engine::{Track, TrackSource};
         use crate::instrument::Instrument;

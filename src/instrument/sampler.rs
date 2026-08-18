@@ -81,7 +81,7 @@ impl Sampler {
 
 impl Default for Sampler {
     fn default() -> Self {
-        let sample = AudioBuffer::decode_wav(include_bytes!("../../assets/samples/perfect.wav"));
+        let sample = AudioBuffer::decode_wav(include_bytes!("../../assets/samples/choir.wav"));
         Self::new(sample)
     }
 }
