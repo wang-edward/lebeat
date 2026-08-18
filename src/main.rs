@@ -9,8 +9,9 @@ fn main() {
 
     use raylib::prelude::*;
 
+    use ledaw::audio::AudioBuffer;
     use ledaw::audio_out;
-    use ledaw::engine::{Engine, Track, TrackSource};
+    use ledaw::engine::{AudioClip, Engine, Track, TrackSource};
     use ledaw::instrument::Instrument;
     use ledaw::instrument::sampler::Sampler;
     use ledaw::interface::{self, HEIGHT, WIDTH};
@@ -63,6 +64,11 @@ fn main() {
     engine.add_track(Track::new(TrackSource::Instrument {
         instrument: Instrument::Sampler(Sampler::default()),
         notes: bass.to_vec(),
+    }));
+
+    let audio = AudioBuffer::decode_wav(include_bytes!("../assets/samples/pierre.wav"));
+    engine.add_track(Track::new(TrackSource::Audio {
+        clips: vec![AudioClip::new(0, audio)],
     }));
     let engine = Arc::new(Mutex::new(engine));
 
