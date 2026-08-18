@@ -499,9 +499,9 @@ impl TrackUi {
                 for (i, tag) in PLUGIN_LIST.iter().enumerate() {
                     let y = i as i32 * 16;
                     let color = if i == self.selector_index {
-                        Color::BLUE
-                    } else {
                         Color::RED
+                    } else {
+                        Color::BLUE
                     };
                     d.draw_rectangle(0, y, 128, 16, Color::DARKGRAY);
                     d.draw_text(tag.name(), 0, y, 5, color);
