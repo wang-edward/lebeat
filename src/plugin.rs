@@ -57,11 +57,11 @@ pub struct Knob {
 }
 
 impl Knob {
-    fn new(x: f32, y: f32, name: &'static str) -> Self {
+    fn new(x: f32, y: f32, color: Color, name: &'static str) -> Self {
         Self {
             pos: Vector2::new(x, y),
             radius: 10.0,
-            color: Color::WHITE,
+            color,
             name,
         }
     }

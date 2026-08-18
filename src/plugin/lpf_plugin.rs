@@ -3,6 +3,7 @@ use raylib::prelude::*;
 use crate::audio::{Context, Lpf, Sample};
 use crate::input::{Event, Key};
 use crate::interface::draw_text_centered;
+use crate::theme::{COLOR1, COLOR2, COLOR3};
 
 use super::{Action, Knob, nudge};
 
@@ -31,9 +32,9 @@ pub struct LpfPluginUi {
 impl LpfPluginUi {
     pub(super) fn new() -> Self {
         Self {
-            drive: Knob::new(32.0, 32.0, "drive"),
-            resonance: Knob::new(96.0, 32.0, "resonance"),
-            cutoff: Knob::new(32.0, 96.0, "cutoff"),
+            drive: Knob::new(32.0, 32.0, COLOR1, "drive"),
+            resonance: Knob::new(96.0, 32.0, COLOR2, "resonance"),
+            cutoff: Knob::new(32.0, 96.0, COLOR3, "cutoff"),
         }
     }
 
