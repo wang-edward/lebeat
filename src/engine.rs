@@ -19,6 +19,10 @@ pub struct Engine {
 
     held_notes: [Option<Frame>; 128],
     record_buffer: Vec<Note>,
+    recording_track: Option<usize>,
+    audio_record_start: Frame,
+    audio_record_sample_rate: f32,
+    audio_record_buffer: Vec<Sample>,
 }
 
 pub struct Timeline {
@@ -57,6 +61,10 @@ impl Engine {
             recording: false,
             held_notes: [None; 128],
             record_buffer: Vec::new(),
+            recording_track: None,
+            audio_record_start: 0,
+            audio_record_sample_rate: sample_rate,
+            audio_record_buffer: Vec::new(),
         }
     }
 
@@ -142,6 +150,27 @@ impl Engine {
         }
     }
 
+    /// Accept interleaved input frames from the audio-input callback.
+    pub fn record_audio_input(&mut self, input: &[Sample], channels: usize, sample_rate: f32) {
+        let Some(track_idx) = self.recording_track else {
+            return;
+        };
+        if !self.recording
+            || !matches!(
+                self.timeline.tracks[track_idx].source,
+                TrackSource::Audio { .. }
+            )
+        {
+            return;
+        }
+
+        self.audio_record_sample_rate = sample_rate;
+        for frame in input.chunks(channels.max(1)) {
+            self.audio_record_buffer
+                .push(frame.iter().sum::<Sample>() / frame.len() as Sample);
+        }
+    }
+
     fn all_notes_off(&mut self) {
         for t in &mut self.timeline.tracks {
             t.all_notes_off();
@@ -157,6 +186,8 @@ impl Engine {
             self.playing = false;
             self.held_notes = [None; 128];
             self.record_buffer.clear();
+            self.recording_track = None;
+            self.audio_record_buffer.clear();
         } else {
             self.playing = !self.playing;
         }
@@ -173,22 +204,34 @@ impl Engine {
 
     pub fn toggle_record(&mut self) {
         if self.recording {
-            if !self.record_buffer.is_empty() {
-                let at = self.timeline.active_track;
-                let buf = std::mem::take(&mut self.record_buffer);
-                if let TrackSource::Instrument { notes, .. } = &mut self.timeline.tracks[at].source
-                {
-                    notes.extend(buf);
+            let track_idx = self.recording_track.take().unwrap();
+            match &mut self.timeline.tracks[track_idx].source {
+                TrackSource::Instrument { notes, .. } => {
+                    notes.extend(std::mem::take(&mut self.record_buffer));
                 }
+                TrackSource::Audio { clips } if !self.audio_record_buffer.is_empty() => {
+                    clips.push(AudioClip::new(
+                        self.audio_record_start,
+                        AudioBuffer {
+                            samples: std::mem::take(&mut self.audio_record_buffer),
+                            sample_rate: self.audio_record_sample_rate,
+                        },
+                    ));
+                }
+                TrackSource::Audio { .. } => {}
             }
             self.held_notes = [None; 128];
             self.recording = false;
             self.all_notes_off();
             self.playing = false;
-        } else if !self.playing {
-            self.playing = true;
-            self.recording = true;
         } else {
+            self.recording_track = Some(self.timeline.active_track);
+            self.audio_record_start = self.timeline.playhead;
+            self.record_buffer.clear();
+            self.audio_record_buffer.clear();
+            if !self.playing {
+                self.playing = true;
+            }
             self.recording = true;
         }
     }

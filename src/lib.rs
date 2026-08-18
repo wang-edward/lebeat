@@ -6,6 +6,7 @@
 //! see notes in those files.
 
 pub mod audio;
+pub mod audio_in;
 pub mod audio_out;
 pub mod engine;
 pub mod input;
@@ -114,6 +115,32 @@ mod tests {
         engine.toggle_play();
         engine.process_block(&mut out);
         assert!(out.iter().any(|sample| *sample != 0.0));
+    }
+
+    #[test]
+    fn audio_recording_commits_to_the_starting_track() {
+        use crate::engine::{Engine, Track, TrackSource};
+        use crate::instrument::Instrument;
+
+        let mut engine = Engine::new(SR, 120.0);
+        engine.add_track(Track::new(TrackSource::Audio { clips: Vec::new() }));
+        engine.add_track(Track::new(TrackSource::Instrument {
+            instrument: Instrument::Sampler(Sampler::default()),
+            notes: Vec::new(),
+        }));
+
+        engine.toggle_record();
+        engine.set_active_track(1);
+        engine.record_audio_input(&[0.25, -0.25, 0.5, 0.5], 2, 44_100.0);
+        engine.toggle_record();
+
+        let TrackSource::Audio { clips } = &engine.track(0).source else {
+            panic!("recording destination was not an audio track");
+        };
+        assert_eq!(clips.len(), 1);
+        assert_eq!(clips[0].start, 0);
+        assert_eq!(clips[0].audio.sample_rate, 44_100.0);
+        assert_eq!(clips[0].audio.samples, [0.0, 0.5]);
     }
 
     #[test]

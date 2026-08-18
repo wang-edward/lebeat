@@ -10,6 +10,7 @@ fn main() {
     use raylib::prelude::*;
 
     use ledaw::audio::AudioBuffer;
+    use ledaw::audio_in;
     use ledaw::audio_out;
     use ledaw::engine::{AudioClip, Engine, Track, TrackSource};
     use ledaw::instrument::Instrument;
@@ -79,6 +80,7 @@ fn main() {
 
     // Audio stream (held until the end of main).
     let _audio = audio_out::start(engine.clone()).expect("failed to start audio");
+    let _audio_in = audio_in::start(engine.clone()).ok();
 
     // Window + 128x128 render target.
     let (mut rl, thread) = raylib::init().size(512, 512).title("LeDaw").build();
