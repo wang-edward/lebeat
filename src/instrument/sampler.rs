@@ -2,79 +2,14 @@ use std::path::{Path, PathBuf};
 
 use raylib::prelude::*;
 
-use crate::audio::{Context, Sample};
+use crate::audio::{AudioBuffer, Context, Sample};
 use crate::input::{Event, Key};
 use crate::ui::Action;
 
 const NUM_VOICES: usize = 8;
 
-pub struct SampleBuffer {
-    samples: Vec<Sample>,
-    sample_rate: f32,
-}
-impl SampleBuffer {
-    pub fn load_wav(path: impl AsRef<Path>) -> std::io::Result<Self> {
-        Ok(Self::decode_wav(&std::fs::read(path)?))
-    }
-
-    pub fn decode_wav(wav: &[u8]) -> Self {
-        assert_eq!(&wav[..4], b"RIFF");
-        assert_eq!(&wav[8..12], b"WAVE");
-
-        let mut offset = 12;
-        let mut format = None;
-        while offset + 8 <= wav.len() {
-            let chunk = &wav[offset..offset + 4];
-            let len = u32::from_le_bytes(wav[offset + 4..offset + 8].try_into().unwrap()) as usize;
-            let start = offset + 8;
-
-            match chunk {
-                b"fmt " => {
-                    let encoding = u16::from_le_bytes(wav[start..start + 2].try_into().unwrap());
-                    assert_eq!(encoding, 1);
-                    let channels =
-                        u16::from_le_bytes(wav[start + 2..start + 4].try_into().unwrap());
-                    assert!((1..=2).contains(&channels));
-                    let sample_rate =
-                        u32::from_le_bytes(wav[start + 4..start + 8].try_into().unwrap()) as f32;
-                    let bits = u16::from_le_bytes(wav[start + 14..start + 16].try_into().unwrap());
-                    assert_eq!(bits, 16);
-
-                    format = Some((channels, sample_rate));
-                }
-                b"data" => {
-                    let (channels, sample_rate) = format.expect("sampler WAV is missing format");
-                    let frame_len = channels as usize * 2;
-                    let end = start.saturating_add(len).min(wav.len());
-                    let samples: Vec<_> = wav[start..end]
-                        .chunks_exact(frame_len)
-                        .map(|frame| {
-                            let left = i16::from_le_bytes([frame[0], frame[1]]) as f32;
-                            if channels == 1 {
-                                left / i16::MAX as f32
-                            } else {
-                                let right = i16::from_le_bytes([frame[2], frame[3]]) as f32;
-                                (left + right) / (2.0 * i16::MAX as f32)
-                            }
-                        })
-                        .collect();
-                    return Self {
-                        samples,
-                        sample_rate,
-                    };
-                }
-                _ => {}
-            }
-
-            offset = start + len + len % 2;
-        }
-
-        panic!("sampler WAV is missing data")
-    }
-}
-
 pub struct Sampler {
-    sample: SampleBuffer,
+    sample: AudioBuffer,
     root_note: u8,
     voices: Vec<SamplerVoice>,
 }
@@ -84,7 +19,7 @@ struct SamplerVoice {
 }
 
 impl Sampler {
-    pub fn new(sample: SampleBuffer) -> Self {
+    pub fn new(sample: AudioBuffer) -> Self {
         Self {
             sample,
             root_note: 60, // C3
@@ -92,7 +27,7 @@ impl Sampler {
         }
     }
 
-    pub fn set_sample(&mut self, sample: SampleBuffer) {
+    pub fn set_sample(&mut self, sample: AudioBuffer) {
         self.all_notes_off();
         self.sample = sample;
     }
@@ -146,7 +81,7 @@ impl Sampler {
 
 impl Default for Sampler {
     fn default() -> Self {
-        let sample = SampleBuffer::decode_wav(include_bytes!("../../assets/samples/perfect.wav"));
+        let sample = AudioBuffer::decode_wav(include_bytes!("../../assets/samples/perfect.wav"));
         Self::new(sample)
     }
 }
@@ -202,7 +137,7 @@ impl SamplerUi {
                 }
                 Key::Enter if !self.files.is_empty() => {
                     let path = &self.files[self.selector_index];
-                    if let Ok(sample) = SampleBuffer::load_wav(path) {
+                    if let Ok(sample) = AudioBuffer::load_wav(path) {
                         sampler.set_sample(sample);
                         self.screen = SamplerScreen::Overview;
                     }

@@ -1,4 +1,5 @@
 //! DSP primitives used by the fixed, owned signal chain.
+use std::path::Path;
 
 pub type Sample = f32;
 
@@ -7,13 +8,76 @@ pub struct Context {
     pub bpm: f32,
 }
 
+pub struct AudioBuffer {
+    pub samples: Vec<Sample>,
+    pub sample_rate: f32,
+}
+
+impl AudioBuffer {
+    pub fn load_wav(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        Ok(Self::decode_wav(&std::fs::read(path)?))
+    }
+    pub fn decode_wav(wav: &[u8]) -> Self {
+        assert_eq!(&wav[..4], b"RIFF");
+        assert_eq!(&wav[8..12], b"WAVE");
+
+        let mut offset = 12;
+        let mut format = None;
+        while offset + 8 <= wav.len() {
+            let chunk = &wav[offset..offset + 4];
+            let len = u32::from_le_bytes(wav[offset + 4..offset + 8].try_into().unwrap()) as usize;
+            let start = offset + 8;
+
+            match chunk {
+                b"fmt " => {
+                    let encoding = u16::from_le_bytes(wav[start..start + 2].try_into().unwrap());
+                    assert_eq!(encoding, 1);
+                    let channels =
+                        u16::from_le_bytes(wav[start + 2..start + 4].try_into().unwrap());
+                    assert!((1..=2).contains(&channels));
+                    let sample_rate =
+                        u32::from_le_bytes(wav[start + 4..start + 8].try_into().unwrap()) as f32;
+                    let bits = u16::from_le_bytes(wav[start + 14..start + 16].try_into().unwrap());
+                    assert_eq!(bits, 16);
+
+                    format = Some((channels, sample_rate));
+                }
+                b"data" => {
+                    let (channels, sample_rate) = format.expect("sampler WAV is missing format");
+                    let frame_len = channels as usize * 2;
+                    let end = start.saturating_add(len).min(wav.len());
+                    let samples: Vec<_> = wav[start..end]
+                        .chunks_exact(frame_len)
+                        .map(|frame| {
+                            let left = i16::from_le_bytes([frame[0], frame[1]]) as f32;
+                            if channels == 1 {
+                                left / i16::MAX as f32
+                            } else {
+                                let right = i16::from_le_bytes([frame[2], frame[3]]) as f32;
+                                (left + right) / (2.0 * i16::MAX as f32)
+                            }
+                        })
+                        .collect();
+                    return Self {
+                        samples,
+                        sample_rate,
+                    };
+                }
+                _ => {}
+            }
+
+            offset = start + len + len % 2;
+        }
+
+        panic!("sampler WAV is missing data")
+    }
+}
+
 impl Context {
     pub fn new(sample_rate: f32, bpm: f32) -> Self {
         Self { sample_rate, bpm }
     }
 }
-
-// ------------------------------------------------------------------ Param
 
 #[derive(Clone, Copy)]
 pub struct Param {
@@ -43,8 +107,6 @@ impl Param {
         self.set(self.min + n * (self.max - self.min));
     }
 }
-
-// ------------------------------------------------------------------ Osc (source)
 
 #[derive(Clone, Copy)]
 pub enum OscKind {
@@ -104,8 +166,6 @@ impl Osc {
         sample
     }
 }
-
-// ------------------------------------------------------------------ Lpf (in-place effect)
 
 /// Moog ladder, D'Angelo/Valimaki "An Improved Virtual Analog Model".
 pub struct Lpf {
@@ -172,8 +232,6 @@ impl Default for Lpf {
     }
 }
 
-// ------------------------------------------------------------------ Delay (in-place effect)
-
 pub struct Delay {
     buffer: Vec<Sample>,
     write_pos: usize,
@@ -213,8 +271,6 @@ impl Delay {
         dry * (1.0 - mix) + delayed * mix
     }
 }
-
-// ------------------------------------------------------------------ Adsr (in-place gate)
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum AdsrStage {
