@@ -361,22 +361,33 @@ impl TimelineUi {
                 for i in 0..num_rows {
                     let row_y = i as i32 * ROW_HEIGHT + HEADER_HEIGHT;
                     d.draw_rectangle_lines(0, row_y, WIDTH, ROW_HEIGHT, Color::DARKGRAY);
-                    let TrackSource::Instrument { notes, .. } = &eng.track(i).source else {
-                        continue;
-                    };
-                    for note in notes {
-                        let sb = frames_to_beats(note.start, eng.bpm(), eng.sample_rate());
-                        let eb = frames_to_beats(note.end, eng.bpm(), eng.sample_rate());
-                        if eb < self.frame.left() || sb > self.frame.right() {
-                            continue;
+                    match &eng.track(i).source {
+                        TrackSource::Instrument { notes, .. } => {
+                            for note in notes {
+                                let sb = frames_to_beats(note.start, eng.bpm(), eng.sample_rate());
+                                let eb = frames_to_beats(note.end, eng.bpm(), eng.sample_rate());
+                                if eb < self.frame.left() || sb > self.frame.right() {
+                                    continue;
+                                }
+                                let lp = (sb - self.frame.left()) / self.frame.width();
+                                let rp = (eb - self.frame.left()) / self.frame.width();
+                                let x1 = (lp * w).max(0.0) as i32;
+                                let x2 = (rp * w).min(w) as i32;
+                                let slot = 23 - (note.note % 24) as i32;
+                                let ny = row_y + 2 + slot;
+                                d.draw_line(x1, ny, x2.max(x1 + 1), ny, Color::GREEN);
+                            }
                         }
-                        let lp = (sb - self.frame.left()) / self.frame.width();
-                        let rp = (eb - self.frame.left()) / self.frame.width();
-                        let x1 = (lp * w).max(0.0) as i32;
-                        let x2 = (rp * w).min(w) as i32;
-                        let slot = 23 - (note.note % 24) as i32;
-                        let ny = row_y + 2 + slot;
-                        d.draw_line(x1, ny, x2.max(x1 + 1), ny, Color::GREEN);
+                        TrackSource::Audio { clips } => {
+                            for clip in clips {
+                                clip.render(
+                                    d,
+                                    (self.frame.left(), self.frame.width()),
+                                    (eng.bpm(), eng.sample_rate()),
+                                    (row_y, ROW_HEIGHT),
+                                );
+                            }
+                        }
                     }
                 }
 
