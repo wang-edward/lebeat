@@ -199,7 +199,7 @@ impl SamplerUi {
                 Key::J if self.selector_index + 1 < self.files.len() => {
                     self.selector_index += 1;
                 }
-                Key::Enter => {
+                Key::Enter if !self.files.is_empty() => {
                     let path = &self.files[self.selector_index];
                     if let Ok(sample) = SampleBuffer::load_wav(path) {
                         sampler.set_sample(sample);
@@ -218,7 +218,6 @@ impl SamplerUi {
                 d.draw_text("OVERVIEW", 0, 0, 10, Color::WHITE);
             }
             SamplerScreen::Picker => {
-                d.draw_text("PICKER", 0, 0, 10, Color::WHITE);
                 for (i, path) in self.files.iter().enumerate() {
                     let y = i as i32 * 16;
 
