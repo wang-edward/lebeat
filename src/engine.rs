@@ -2,12 +2,9 @@
 //! It lives behind `Arc<Mutex<Engine>>`; the UI locks it to apply input and to read state
 //! for rendering, and the cpal callback locks it to fill each audio block.
 //!
-use raylib::prelude::*;
-
 use crate::audio::{AudioBuffer, Context, Sample};
 use crate::instrument::Instrument;
-use crate::interface::WIDTH;
-use crate::midi::{self, Frame, Note, frames_to_beats};
+use crate::midi::{Frame, Note};
 
 pub use crate::plugin::{LIST as PLUGIN_LIST, Plugin, PluginKind, PluginUi, create};
 
@@ -344,63 +341,5 @@ impl Track {
 impl AudioClip {
     pub fn new(start: Frame, audio: AudioBuffer) -> Self {
         Self { start, audio }
-    }
-
-    pub(crate) fn render<D: RaylibDraw>(
-        &self,
-        d: &mut D,
-        view: (f32, f32),
-        timing: (f32, f32),
-        row: (i32, i32),
-    ) {
-        let (view_start, view_width) = view;
-        let (bpm, engine_sample_rate) = timing;
-        let (row_y, row_height) = row;
-        if self.audio.samples.is_empty() || self.audio.sample_rate <= 0.0 {
-            return;
-        }
-
-        let clip_frames =
-            (self.audio.samples.len() as f32 * engine_sample_rate / self.audio.sample_rate) as u64;
-        let start = frames_to_beats(self.start, bpm, engine_sample_rate);
-        let end = frames_to_beats(self.start + clip_frames, bpm, engine_sample_rate);
-        if end < view_start || start > view_start + view_width {
-            return;
-        }
-
-        let x1 = (((start - view_start) / view_width * WIDTH as f32).max(0.0)) as i32;
-        let x2 = (((end - view_start) / view_width * WIDTH as f32).min(WIDTH as f32)) as i32;
-        let x2 = x2.max(x1 + 1);
-        let center = row_y + row_height / 2;
-        let amplitude = row_height / 2 - 3;
-
-        d.draw_rectangle(
-            x1,
-            row_y + 1,
-            x2 - x1,
-            row_height - 1,
-            Color::new(0, 82, 172, 128),
-        );
-        for x in x1..x2 {
-            let start_beat = view_start + (x as f32 / WIDTH as f32) * view_width;
-            let end_beat = view_start + ((x + 1) as f32 / WIDTH as f32) * view_width;
-            let start_frame = midi::beats_to_frames(start_beat, bpm, engine_sample_rate);
-            let end_frame = midi::beats_to_frames(end_beat, bpm, engine_sample_rate);
-            let start_idx = ((start_frame.saturating_sub(self.start) as f32)
-                * self.audio.sample_rate
-                / engine_sample_rate) as usize;
-            let end_idx = ((end_frame.saturating_sub(self.start) as f32) * self.audio.sample_rate
-                / engine_sample_rate) as usize;
-            let start_idx = start_idx.min(self.audio.samples.len() - 1);
-            let end_idx = end_idx.max(start_idx + 1).min(self.audio.samples.len());
-            let (min, max) = self.audio.samples[start_idx..end_idx]
-                .iter()
-                .fold((0.0f32, 0.0f32), |(min, max), sample| {
-                    (min.min(*sample), max.max(*sample))
-                });
-            let top = center - (max * amplitude as f32) as i32;
-            let bottom = center - (min * amplitude as f32) as i32;
-            d.draw_line(x, top, x, bottom, Color::WHITE);
-        }
     }
 }

@@ -380,12 +380,76 @@ impl TimelineUi {
                         }
                         TrackSource::Audio { clips } => {
                             for clip in clips {
-                                clip.render(
-                                    d,
-                                    (self.frame.left(), self.frame.width()),
-                                    (eng.bpm(), eng.sample_rate()),
-                                    (row_y, ROW_HEIGHT),
+                                if clip.audio.samples.is_empty() || clip.audio.sample_rate <= 0.0 {
+                                    continue;
+                                }
+
+                                let clip_frames = (clip.audio.samples.len() as f32
+                                    * eng.sample_rate()
+                                    / clip.audio.sample_rate)
+                                    as u64;
+                                let start =
+                                    frames_to_beats(clip.start, eng.bpm(), eng.sample_rate());
+                                let end = frames_to_beats(
+                                    clip.start + clip_frames,
+                                    eng.bpm(),
+                                    eng.sample_rate(),
                                 );
+                                if end < self.frame.left() || start > self.frame.right() {
+                                    continue;
+                                }
+
+                                let x1 = (((start - self.frame.left()) / self.frame.width()
+                                    * WIDTH as f32)
+                                    .max(0.0)) as i32;
+                                let x2 = (((end - self.frame.left()) / self.frame.width()
+                                    * WIDTH as f32)
+                                    .min(WIDTH as f32))
+                                    as i32;
+                                let x2 = x2.max(x1 + 1);
+                                let center = row_y + ROW_HEIGHT / 2;
+                                let amplitude = ROW_HEIGHT / 2 - 3;
+
+                                d.draw_rectangle(
+                                    x1,
+                                    row_y + 1,
+                                    x2 - x1,
+                                    ROW_HEIGHT - 1,
+                                    Color::new(0, 82, 172, 128),
+                                );
+                                let samples_per_pixel = self.frame.width() * 60.0 / eng.bpm()
+                                    * clip.audio.sample_rate
+                                    / WIDTH as f32;
+
+                                for x in x1..x2 {
+                                    let beat = self.frame.left()
+                                        + x as f32 / WIDTH as f32 * self.frame.width();
+
+                                    let frame =
+                                        midi::beats_to_frames(beat, eng.bpm(), eng.sample_rate());
+
+                                    let start_idx = ((frame.saturating_sub(clip.start) as f32)
+                                        * clip.audio.sample_rate
+                                        / eng.sample_rate())
+                                        as usize;
+
+                                    let end_idx = (start_idx as f32 + samples_per_pixel) as usize;
+
+                                    let start_idx = start_idx.min(clip.audio.samples.len() - 1);
+                                    let end_idx =
+                                        end_idx.max(start_idx + 1).min(clip.audio.samples.len());
+
+                                    let (min, max) = clip.audio.samples[start_idx..end_idx]
+                                        .iter()
+                                        .fold((0.0f32, 0.0f32), |(min, max), sample| {
+                                            (min.min(*sample), max.max(*sample))
+                                        });
+
+                                    let top = center - (max * amplitude as f32) as i32;
+                                    let bottom = center - (min * amplitude as f32) as i32;
+
+                                    d.draw_line(x, top, x, bottom, Color::WHITE);
+                                }
                             }
                         }
                     }
