@@ -44,8 +44,8 @@ pub enum TrackSource {
 }
 
 pub struct AudioClip {
-    start: Frame,
-    audio: AudioBuffer,
+    pub(crate) start: Frame,
+    pub(crate) audio: AudioBuffer,
 }
 
 impl Engine {

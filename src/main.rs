@@ -68,8 +68,12 @@ fn main() {
     }));
 
     let audio = AudioBuffer::decode_wav(include_bytes!("../assets/samples/pierre.wav"));
+    let audio2 = AudioBuffer::decode_wav(include_bytes!("../assets/samples/perfect.wav"));
     engine.add_track(Track::new(TrackSource::Audio {
-        clips: vec![AudioClip::new(0, audio)],
+        clips: vec![
+            AudioClip::new(0, audio),
+            AudioClip::new(beats_to_frames(7.0, tempo, sr), audio2),
+        ],
     }));
     let engine = Arc::new(Mutex::new(engine));
 
