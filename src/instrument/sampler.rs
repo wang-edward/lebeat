@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use raylib::prelude::*;
 
@@ -45,8 +45,8 @@ impl SampleBuffer {
                 b"data" => {
                     let (channels, sample_rate) = format.expect("sampler WAV is missing format");
                     let frame_len = channels as usize * 2;
-                    assert!(len.is_multiple_of(frame_len));
-                    let samples: Vec<_> = wav[start..start + len]
+                    let end = start.saturating_add(len).min(wav.len());
+                    let samples: Vec<_> = wav[start..end]
                         .chunks_exact(frame_len)
                         .map(|frame| {
                             let left = i16::from_le_bytes([frame[0], frame[1]]) as f32;
@@ -166,16 +166,27 @@ pub enum SamplerScreen {
 }
 pub struct SamplerUi {
     screen: SamplerScreen,
+    files: Vec<PathBuf>,
+    selector_index: usize,
 }
 
 impl SamplerUi {
     pub fn new() -> Self {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/samples");
+        let files = std::fs::read_dir(dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "wav"))
+            .collect();
         SamplerUi {
             screen: SamplerScreen::Overview,
+            files,
+            selector_index: 0,
         }
     }
 
-    pub fn handle_event(&mut self, _sampler: &mut Sampler, event: Event) -> Action {
+    pub fn handle_event(&mut self, sampler: &mut Sampler, event: Event) -> Action {
         match self.screen {
             SamplerScreen::Overview => match event.key {
                 Key::Backspace => return Action::GoBack,
@@ -184,6 +195,17 @@ impl SamplerUi {
             },
             SamplerScreen::Picker => match event.key {
                 Key::Backspace => self.screen = SamplerScreen::Overview,
+                Key::K => self.selector_index = self.selector_index.saturating_sub(1),
+                Key::J if self.selector_index + 1 < self.files.len() => {
+                    self.selector_index += 1;
+                }
+                Key::Enter => {
+                    let path = &self.files[self.selector_index];
+                    if let Ok(sample) = SampleBuffer::load_wav(path) {
+                        sampler.set_sample(sample);
+                        self.screen = SamplerScreen::Overview;
+                    }
+                }
                 _ => {}
             },
         }
@@ -197,6 +219,20 @@ impl SamplerUi {
             }
             SamplerScreen::Picker => {
                 d.draw_text("PICKER", 0, 0, 10, Color::WHITE);
+                for (i, path) in self.files.iter().enumerate() {
+                    let y = i as i32 * 16;
+
+                    let color = if i == self.selector_index {
+                        Color::RED
+                    } else {
+                        Color::BLUE
+                    };
+
+                    let name = path.file_name().unwrap().to_string_lossy();
+
+                    d.draw_rectangle(0, y, 128, 16, Color::DARKGRAY);
+                    d.draw_text(&name, 0, y, 5, color);
+                }
             }
         }
     }
