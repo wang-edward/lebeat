@@ -96,7 +96,7 @@ impl Engine {
     }
 
     pub fn remove_track(&mut self, idx: usize) -> bool {
-        if idx < self.timeline.tracks.len() && self.timeline.tracks.len() > 1 {
+        if idx < self.timeline.tracks.len() && self.timeline.tracks.len() > 1 && !self.recording {
             self.timeline.tracks.remove(idx);
             if self.timeline.active_track >= self.timeline.tracks.len() {
                 self.timeline.active_track = self.timeline.tracks.len() - 1;
