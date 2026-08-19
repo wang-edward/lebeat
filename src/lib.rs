@@ -131,7 +131,7 @@ mod tests {
 
         engine.toggle_record();
         engine.set_active_track(1);
-        engine.record_audio_input(&[0.25, -0.25, 0.5, 0.5], 2, 44_100.0);
+        engine.record_audio_input(&[0.25, -0.25, 0.5, 0.5], 2, 44_100.0, |sample| *sample);
         engine.toggle_record();
 
         let TrackSource::Audio { clips } = &engine.track(0).source else {

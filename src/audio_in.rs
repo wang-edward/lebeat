@@ -23,18 +23,16 @@ pub fn start(engine: Arc<Mutex<Engine>>) -> Result<AudioIn, Box<dyn std::error::
     let stream = match supported.sample_format() {
         cpal::SampleFormat::F32 => device.build_input_stream(
             &config,
-            move |input: &[f32], _| record(&engine, input, channels, sample_rate),
+            move |input: &[f32], _| record(&engine, input, channels, sample_rate, |sample| *sample),
             err_fn,
             None,
         )?,
         cpal::SampleFormat::I16 => device.build_input_stream(
             &config,
             move |input: &[i16], _| {
-                let input: Vec<_> = input
-                    .iter()
-                    .map(|sample| *sample as f32 / i16::MAX as f32)
-                    .collect();
-                record(&engine, &input, channels, sample_rate);
+                record(&engine, input, channels, sample_rate, |sample| {
+                    *sample as f32 / i16::MAX as f32
+                });
             },
             err_fn,
             None,
@@ -42,11 +40,9 @@ pub fn start(engine: Arc<Mutex<Engine>>) -> Result<AudioIn, Box<dyn std::error::
         cpal::SampleFormat::U16 => device.build_input_stream(
             &config,
             move |input: &[u16], _| {
-                let input: Vec<_> = input
-                    .iter()
-                    .map(|sample| (*sample as f32 / u16::MAX as f32) * 2.0 - 1.0)
-                    .collect();
-                record(&engine, &input, channels, sample_rate);
+                record(&engine, input, channels, sample_rate, |sample| {
+                    (*sample as f32 / u16::MAX as f32) * 2.0 - 1.0
+                });
             },
             err_fn,
             None,
@@ -62,8 +58,14 @@ pub fn start(engine: Arc<Mutex<Engine>>) -> Result<AudioIn, Box<dyn std::error::
     Ok(AudioIn { _stream: stream })
 }
 
-fn record(engine: &Arc<Mutex<Engine>>, input: &[Sample], channels: usize, sample_rate: f32) {
+fn record<T>(
+    engine: &Arc<Mutex<Engine>>,
+    input: &[T],
+    channels: usize,
+    sample_rate: f32,
+    convert: impl Fn(&T) -> Sample,
+) {
     if let Ok(mut engine) = engine.lock() {
-        engine.record_audio_input(input, channels, sample_rate);
+        engine.record_audio_input(input, channels, sample_rate, convert);
     }
 }

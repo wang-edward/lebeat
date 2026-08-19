@@ -151,7 +151,13 @@ impl Engine {
     }
 
     /// Accept interleaved input frames from the audio-input callback.
-    pub fn record_audio_input(&mut self, input: &[Sample], channels: usize, sample_rate: f32) {
+    pub fn record_audio_input<T>(
+        &mut self,
+        input: &[T],
+        channels: usize,
+        sample_rate: f32,
+        convert: impl Fn(&T) -> Sample,
+    ) {
         let Some(track_idx) = self.recording_track else {
             return;
         };
@@ -167,7 +173,7 @@ impl Engine {
         self.audio_record_sample_rate = sample_rate;
         for frame in input.chunks(channels.max(1)) {
             self.audio_record_buffer
-                .push(frame.iter().sum::<Sample>() / frame.len() as Sample);
+                .push(frame.iter().map(&convert).sum::<Sample>() / frame.len() as Sample);
         }
     }
 
