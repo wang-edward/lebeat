@@ -1,4 +1,4 @@
-name: test
+name: ci
 
 on:
   push:
@@ -21,6 +21,11 @@ jobs:
           - name: clippy
             command: cargo clippy --all-targets -- -D warnings
             needs_raylib: true
+            needs_xvfb: false
+          - name: fuzz
+            command: xvfb-run -a cargo run --bin fuzz
+            needs_raylib: true
+            needs_xvfb: true
     name: ${{ matrix.check.name }}
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +37,10 @@ jobs:
       - name: Install Raylib build dependencies
         if: matrix.check.needs_raylib
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl1-mesa-dev libwayland-dev libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+
+      - name: Install virtual display
+        if: matrix.check.needs_xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - run: ${{ matrix.check.command }}
 
