@@ -55,7 +55,6 @@ jobs:
 
   gigafuzz:
     runs-on: ubuntu-latest
-    continue-on-error: true
     container:
       image: ghcr.io/${{ github.repository_owner }}/le-ci:latest
       credentials:
