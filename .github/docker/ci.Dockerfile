@@ -14,6 +14,7 @@ RUN apt-get update \
         libxinerama-dev \
         libxrandr-dev \
         pkg-config \
+        xauth \
         xvfb \
     && rustup component add clippy rustfmt \
     && rm -rf /var/lib/apt/lists/*
