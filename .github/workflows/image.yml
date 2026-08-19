@@ -1,11 +1,11 @@
-name: CI image
+name: image
 
 on:
   push:
     branches: [main]
     paths:
       - .github/docker/ci.Dockerfile
-      - .github/workflows/ci-image.yml
+      - .github/workflows/image.yml
   workflow_dispatch:
 
 permissions:
