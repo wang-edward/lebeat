@@ -50,10 +50,15 @@ fn main() {
     let icons = Icons::load(&mut rl, &thread);
     let mut app = App::new(engine.clone(), icons);
 
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
+    let seed = std::env::args()
+        .nth(1)
+        .map(|seed| seed.parse().expect("fuzz seed must be a u64"))
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos() as u64
+        });
     let mut rng = Rng(seed);
 
     const NUM_EVENTS: usize = 100_000;
