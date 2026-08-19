@@ -60,11 +60,11 @@ impl Engine {
             playing: false,
             recording: false,
             held_notes: [None; 128],
-            record_buffer: Vec::new(),
+            record_buffer: Vec::with_capacity(500), // preallocate 500 notes
             recording_track: None,
             audio_record_start: 0,
             audio_record_sample_rate: sample_rate,
-            audio_record_buffer: Vec::new(),
+            audio_record_buffer: Vec::with_capacity((sample_rate * 60.0 * 3.0) as usize), // preallocate 3 minutes
         }
     }
 
