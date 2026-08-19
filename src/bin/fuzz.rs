@@ -3,7 +3,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use raylib::prelude::*;
 
-use ledaw::audio_out;
 use ledaw::engine::{Engine, Track, TrackSource};
 use ledaw::input::{Event, EventType, POLL_KEYS};
 use ledaw::instrument::Instrument;
@@ -32,7 +31,7 @@ impl Rng {
 }
 
 fn main() {
-    let sr = audio_out::default_output_sample_rate().unwrap_or(48_000.0);
+    let sr = 48_000.0;
     let tempo = 120.0f32;
 
     let mut engine = Engine::new(sr, tempo);
@@ -41,8 +40,6 @@ fn main() {
         notes: Vec::new(),
     }));
     let engine = Arc::new(Mutex::new(engine));
-
-    let _audio = audio_out::start(engine.clone()).expect("failed to start audio");
 
     let (mut rl, thread) = raylib::init().size(512, 512).title("LeDaw fuzz").build();
     rl.set_exit_key(None);
@@ -53,10 +50,15 @@ fn main() {
     let icons = Icons::load(&mut rl, &thread);
     let mut app = App::new(engine.clone(), icons);
 
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64;
+    let seed = std::env::args()
+        .nth(1)
+        .map(|seed| seed.parse().expect("fuzz seed must be a u64"))
+        .unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos() as u64
+        });
     let mut rng = Rng(seed);
 
     const NUM_EVENTS: usize = 100_000;
