@@ -213,13 +213,17 @@ impl Engine {
             let track_idx = self.recording_track.take().unwrap();
             match &mut self.timeline.tracks[track_idx].source {
                 TrackSource::Instrument { notes, .. } => {
-                    notes.extend(std::mem::take(&mut self.record_buffer));
+                    notes.append(&mut self.record_buffer);
                 }
                 TrackSource::Audio { clips } if !self.audio_record_buffer.is_empty() => {
+                    let samples = std::mem::replace(
+                        &mut self.audio_record_buffer,
+                        Vec::with_capacity((self.audio_record_sample_rate * 60.0 * 3.0) as usize),
+                    );
                     clips.push(AudioClip::new(
                         self.audio_record_start,
                         AudioBuffer {
-                            samples: std::mem::take(&mut self.audio_record_buffer),
+                            samples,
                             sample_rate: self.audio_record_sample_rate,
                         },
                     ));
