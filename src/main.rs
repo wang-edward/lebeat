@@ -103,6 +103,7 @@ fn main() {
     while !rl.window_should_close() {
         for ev in interface::poll_events(&rl) {
             app.handle_event(ev);
+            println!("{:?}", ev);
         }
 
         let screen_w = rl.get_screen_width();
